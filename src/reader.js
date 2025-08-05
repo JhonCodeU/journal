@@ -1,34 +1,31 @@
-const axios = require('axios');
-const { JSDOM } = require('jsdom');
-const say = require('say');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
+const { commonWords } = require('./vocabulary');
 
-async function readTextOrUrl() {
+async function analyzeText() {
   const answers = await inquirer.prompt([
     {
-      type: 'input',
-      name: 'source',
-      message: 'Enter the text or URL to read:',
+      type: 'editor',
+      name: 'text',
+      message: 'Paste the text you want to analyze:',
     },
   ]);
 
-  const source = answers.source.trim();
+  const text = answers.text;
+  const words = text.split(/\s+/);
 
-  if (source.startsWith('http')) {
-    try {
-      const response = await axios.get(source);
-      const dom = new JSDOM(response.data);
-      const text = dom.window.document.body.textContent || "";
-      say.speak(text);
-      console.log(chalk.green('Reading content from URL...'));
-    } catch (error) {
-      console.error(chalk.red('Error fetching or reading URL:'), error.message);
+  const highlightedText = words.map(word => {
+    const cleanedWord = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (cleanedWord && !commonWords.has(cleanedWord)) {
+      return chalk.yellow(word);
+    } else {
+      return word;
     }
-  } else {
-    say.speak(source);
-    console.log(chalk.green('Reading text...'));
-  }
+  }).join(' ');
+
+  console.log('\n--- Analyzed Text ---');
+  console.log(highlightedText);
+  console.log('\n---------------------');
 }
 
-module.exports = { readTextOrUrl };
+module.exports = { analyzeText };
