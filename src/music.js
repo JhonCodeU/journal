@@ -11,7 +11,12 @@ function getMusicEntries() {
     return [];
   }
   const content = fs.readFileSync(MUSIC_DB_FILE, 'utf8');
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    console.error(chalk.red('Error parsing music_journal.json. Starting with an empty list.'));
+    return [];
+  }
 }
 
 function saveMusicEntries(entries) {
@@ -93,20 +98,50 @@ async function addMusicEntry() {
   console.log(chalk.green('Song entry saved!'));
 }
 
-function viewMusicEntries() {
+async function viewMusicEntries() {
   const entries = getMusicEntries();
   if (entries.length === 0) {
     console.log(chalk.yellow('No music entries yet.'));
     return;
   }
 
-  entries.forEach((entry, index) => {
-    console.log(chalk.cyan.bold(`\n--- Entry ${index + 1} ---
-`));
-    console.log(chalk.green(`Artist/Band:`), entry.artist);
-    console.log(chalk.green(`Song Title:`), entry.title);
-    console.log(chalk.green(`Lyrics:`), entry.lyrics);
-  });
+  const choices = entries.map((entry, index) => ({
+    name: `${chalk.yellow(entry.artist)} - ${entry.title}`,
+    value: index,
+  }));
+
+  choices.push(new inquirer.Separator());
+  choices.push({ name: 'Back to main menu', value: 'back' });
+
+  const { selectedIndex } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedIndex',
+      message: 'Select a song to view:',
+      choices: choices,
+      loop: false
+    },
+  ]);
+
+  if (selectedIndex === 'back') {
+    return;
+  }
+
+  const selectedEntry = entries[selectedIndex];
+  console.log(chalk.cyan.bold(`\n--- ${selectedEntry.artist} - ${selectedEntry.title} ---\n`));
+  console.log(chalk.green('Lyrics:'));
+  console.log(selectedEntry.lyrics);
+  console.log('\n--------------------------------------------------\n');
+
+  await inquirer.prompt([
+      {
+          type: 'input',
+          name: 'continue',
+          message: 'Press Enter to return to the music list...', 
+      }
+  ]);
+  
+  await viewMusicEntries();
 }
 
 module.exports = { addMusicEntry, viewMusicEntries };
