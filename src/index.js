@@ -1,9 +1,9 @@
-
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const { analyzeText } = require('./reader');
 const { addEntry, viewEntries } = require('./journal');
 const { viewVocabulary, getWordOfTheDay } = require('./vocabularyManager');
+const { addMusicEntry, viewMusicEntries } = require('./music');
 
 function showWordOfTheDay() {
   const word = getWordOfTheDay();
@@ -26,6 +26,8 @@ async function mainMenu() {
         'Analyze a text',
         'Add a new journal entry',
         'View all journal entries',
+        'Add a new music entry',
+        'View all music entries',
         'View my vocabulary',
         'Exit'
       ],
@@ -36,12 +38,17 @@ async function mainMenu() {
     case 'Analyze a text':
       await analyzeText();
       break;
-
     case 'Add a new journal entry':
       await addEntry();
       break;
     case 'View all journal entries':
       viewEntries();
+      break;
+    case 'Add a new music entry':
+      await addMusicEntry();
+      break;
+    case 'View all music entries':
+      viewMusicEntries();
       break;
     case 'View my vocabulary':
       viewVocabulary();
