@@ -1,147 +1,112 @@
 const inquirer = require('inquirer');
 const chalk = require('chalk');
-const fs = require('fs');
-const { commonWords } = require('./vocabulary');
+const axios = require('axios');
 const { saveWord } = require('./vocabularyManager');
 
-const MUSIC_DB_FILE = './music_journal.json';
+const API_URL = 'https://api.lyrics.ovh/v1';
 
-function getMusicEntries() {
-  if (!fs.existsSync(MUSIC_DB_FILE)) {
-    return [];
-  }
-  const content = fs.readFileSync(MUSIC_DB_FILE, 'utf8');
+async function fetchLyrics(artist, title) {
   try {
-    return JSON.parse(content);
-  } catch (e) {
-    console.error(chalk.red('Error parsing music_journal.json. Starting with an empty list.'));
-    return [];
+    const response = await axios.get(`${API_URL}/${artist}/${title}`);
+    return response.data.lyrics;
+  } catch (error) {
+    return null;
   }
 }
 
-function saveMusicEntries(entries) {
-  fs.writeFileSync(MUSIC_DB_FILE, JSON.stringify(entries, null, 2));
+function createFillInTheBlanks(lyrics, difficulty = 0.15) {
+  const words = lyrics.split(/(\s+)/); // Keep whitespace
+  let blankedCount = 0;
+  const totalWords = words.filter(w => w.trim() !== '').length;
+  const targetBlanked = Math.floor(totalWords * difficulty);
+  const originalWords = [];
+
+  const blankedLyrics = words.map(word => {
+    if (word.trim() !== '' && Math.random() < difficulty && blankedCount < targetBlanked) {
+      originalWords.push(word);
+      blankedCount++;
+      return `[${chalk.yellow('_'.repeat(word.length))}]`;
+    } 
+    return word;
+  }).join('');
+
+  return { blankedLyrics, originalWords };
 }
 
-async function addMusicEntry() {
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'artist',
-      message: 'Artist/Band:',
-    },
-    {
-      type: 'input',
-      name: 'title',
-      message: 'Song Title:',
-    },
-    {
-      type: 'editor',
-      name: 'lyrics',
-      message: 'Enter the lyrics you are listening to:',
-    },
+async function interactiveMusicSession() {
+  console.log(chalk.cyan.bold('\n🎵 Welcome to the Interactive Music Session!\n'));
+
+  const { artist, title } = await inquirer.prompt([
+    { type: 'input', name: 'artist', message: 'Enter the artist:' },
+    { type: 'input', name: 'title', message: 'Enter the song title:' },
   ]);
 
-  const words = answers.lyrics.split(/\s+/);
-  const difficultWords = new Set();
+  console.log(chalk.blue(`\nSearching for lyrics for "${title}" by ${artist}...`));
+  const lyrics = await fetchLyrics(artist, title);
 
-  const highlightedLyrics = words.map(word => {
-    const cleanedWord = word.toLowerCase().replace(/[^a-z]/g, '');
-    if (cleanedWord && !commonWords.has(cleanedWord)) {
-      difficultWords.add(cleanedWord);
-      return chalk.yellow(word);
+  if (!lyrics) {
+    console.log(chalk.red('Sorry, lyrics not found. Please check the spelling or try another song.\n'));
+    return;
+  }
+
+  console.log(chalk.green('Lyrics found! Get ready to play.\n'));
+  const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
+  console.log(`🎧 Listen to the song here: ${chalk.underline.blue(youtubeLink)}\n`);
+
+  const { blankedLyrics, originalWords } = createFillInTheBlanks(lyrics);
+  console.log(chalk.bold('--- Fill in the blanks while you listen ---'));
+  console.log(blankedLyrics);
+  console.log(chalk.bold('------------------------------------------\n'));
+
+  const userAnswers = [];
+  for (let i = 0; i < originalWords.length; i++) {
+    const { answer } = await inquirer.prompt([{
+      type: 'input',
+      name: 'answer',
+      message: `Blank #${i + 1}:`,
+    }]);
+    userAnswers.push(answer.trim());
+  }
+
+  let score = 0;
+  const wordsToSave = new Set();
+  console.log(chalk.cyan.bold('\n--- Results ---'));
+  for (let i = 0; i < originalWords.length; i++) {
+    const original = originalWords[i].replace(/[^a-zA-Z0-9]/g, ''); // Clean punctuation
+    const answered = userAnswers[i];
+    if (original.toLowerCase() === answered.toLowerCase()) {
+      console.log(`${i + 1}. ${chalk.green(answered)} - Correct!`);
+      score++;
     } else {
-      return word;
+      console.log(`${i + 1}. ${chalk.red(answered)} - Incorrect. Correct word was: ${chalk.yellow(original)}`);
+      wordsToSave.add(original.toLowerCase());
     }
-  }).join(' ');
+  }
+  console.log(chalk.bold(`\nYou scored ${score} out of ${originalWords.length}!\n`));
 
-  console.log('\n--- Analyzed Lyrics ---');
-  console.log(highlightedLyrics);
-  console.log('\n---------------------');
-
-  if (difficultWords.size > 0) {
-    const { confirm } = await inquirer.prompt([
-      {
+  if (wordsToSave.size > 0) {
+    const { confirm } = await inquirer.prompt([{
         type: 'confirm',
         name: 'confirm',
-        message: 'Would you like to save any of these difficult words?',
-        default: true,
-      },
-    ]);
+        message: 'Do you want to save the words you missed to your vocabulary?',
+        default: true
+    }]);
 
     if (confirm) {
-      const { wordsToSave } = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          name: 'wordsToSave',
-          message: 'Select words to save:',
-          choices: [...difficultWords],
-        },
-      ]);
-
-      for (const word of wordsToSave) {
-        const { translation } = await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'translation',
-            message: `Enter the Spanish translation for "${word}":`,
-          },
-        ]);
-        saveWord({ word, translation });
-      }
+        for (const word of wordsToSave) {
+            const { translation } = await inquirer.prompt([
+                {
+                    type: 'input',
+                    name: 'translation',
+                    message: `Enter the Spanish translation for "${word}":`
+                }
+            ]);
+            if (translation) {
+                saveWord({ word, translation });
+            }
+        }
     }
   }
-
-  const entries = getMusicEntries();
-  entries.push(answers);
-  saveMusicEntries(entries);
-  console.log(chalk.green('Song entry saved!'));
 }
 
-async function viewMusicEntries() {
-  const entries = getMusicEntries();
-  if (entries.length === 0) {
-    console.log(chalk.yellow('No music entries yet.'));
-    return;
-  }
-
-  const choices = entries.map((entry, index) => ({
-    name: `${chalk.yellow(entry.artist)} - ${entry.title}`,
-    value: index,
-  }));
-
-  choices.push(new inquirer.Separator());
-  choices.push({ name: 'Back to main menu', value: 'back' });
-
-  const { selectedIndex } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'selectedIndex',
-      message: 'Select a song to view:',
-      choices: choices,
-      loop: false
-    },
-  ]);
-
-  if (selectedIndex === 'back') {
-    return;
-  }
-
-  const selectedEntry = entries[selectedIndex];
-  console.log(chalk.cyan.bold(`\n--- ${selectedEntry.artist} - ${selectedEntry.title} ---\n`));
-  console.log(chalk.green('Lyrics:'));
-  console.log(selectedEntry.lyrics);
-  console.log('\n--------------------------------------------------\n');
-
-  await inquirer.prompt([
-      {
-          type: 'input',
-          name: 'continue',
-          message: 'Press Enter to return to the music list...', 
-      }
-  ]);
-  
-  await viewMusicEntries();
-}
-
-module.exports = { addMusicEntry, viewMusicEntries };
+module.exports = { interactiveMusicSession };
