@@ -28,21 +28,17 @@ async function getLyricsFromGeniusPage(url) {
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
-    // Genius lyrics are typically in a div with data-lyrics-container attribute
-    // or within a div with a specific class like 'lyrics'
     let lyrics = '';
     $('[data-lyrics-container="true"], .lyrics').each((i, elem) => {
       lyrics += $(elem).text().trim() + '\n\n';
     });
 
     if (!lyrics) {
-      // Fallback for older structures or different layouts
       lyrics = $('div.lyrics').text().trim();
     }
 
-    // Clean up common annotations/extra text
-    lyrics = lyrics.replace(/\n\[.*?\]\n/g, '\n'); // Remove [Verse], [Chorus] etc.
-    lyrics = lyrics.replace(/\n\n\n/g, '\n\n'); // Reduce multiple newlines
+    lyrics = lyrics.replace(/\n\[.*?\]\n/g, '\n');
+    lyrics = lyrics.replace(/\n\n\n/g, '\n\n');
     lyrics = lyrics.trim();
 
     return lyrics;
@@ -53,22 +49,36 @@ async function getLyricsFromGeniusPage(url) {
 }
 
 function createFillInTheBlanks(lyrics, difficulty = 0.15) {
-  const words = lyrics.split(/(\s+)/); // Keep whitespace
-  let blankedCount = 0;
-  const totalWords = words.filter(w => w.trim() !== '').length;
-  const targetBlanked = Math.floor(totalWords * difficulty);
-  const originalWords = [];
+  const lines = lyrics.split('\n').filter(line => line.trim() !== '');
+  const processedLines = [];
+  const allOriginalWords = [];
 
-  const blankedLyrics = words.map(word => {
-    if (word.trim() !== '' && Math.random() < difficulty && blankedCount < targetBlanked) {
-      originalWords.push(word);
-      blankedCount++;
-      return `[${chalk.yellow('_'.repeat(word.length))}]`;
-    }
-    return word;
-  }).join('');
+  lines.forEach(line => {
+    const wordsInLine = line.split(/(\s+)/); 
+    let blankedLineDisplay = '';
+    const originalWordsInThisLine = [];
+    let blankedCountInLine = 0;
+    const totalFillableWordsInLine = wordsInLine.filter(w => w.trim() !== '' && w.match(/[a-zA-Z]/)).length;
+    const targetBlankedInLine = Math.floor(totalFillableWordsInLine * difficulty);
 
-  return { blankedLyrics, originalWords };
+    wordsInLine.forEach(part => {
+      const cleanedPart = part.trim();
+      if (cleanedPart !== '' && cleanedPart.match(/[a-zA-Z]/) && Math.random() < difficulty && blankedCountInLine < targetBlankedInLine) {
+        originalWordsInThisLine.push(cleanedPart);
+        allOriginalWords.push(cleanedPart);
+        blankedCountInLine++;
+        blankedLineDisplay += `[${chalk.yellow('_'.repeat(cleanedPart.length))}]`;
+      } else {
+        blankedLineDisplay += part;
+      }
+    });
+    processedLines.push({
+      originalLine: line,
+      blankedLineDisplay: blankedLineDisplay,
+      originalWordsInThisLine: originalWordsInThisLine
+    });
+  });
+  return { processedLines, allOriginalWords };
 }
 
 async function interactiveMusicSession() {
@@ -120,38 +130,55 @@ async function interactiveMusicSession() {
   const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
   console.log(`🎧 Listen to the song here: ${chalk.underline.blue(youtubeLink)}\n`);
 
-  const { blankedLyrics, originalWords } = createFillInTheBlanks(lyrics);
-  console.log(chalk.bold('--- Fill in the blanks while you listen ---'));
-  console.log(blankedLyrics);
-  console.log(chalk.bold('------------------------------------------\n'));
+  const { processedLines, allOriginalWords } = createFillInTheBlanks(lyrics);
+  const missedWordsOverall = new Set();
+  let correctCount = 0;
+  let totalBlanks = allOriginalWords.length;
 
-  const userAnswers = [];
-  for (let i = 0; i < originalWords.length; i++) {
-    const { answer } = await inquirer.prompt([{ 
-      type: 'input',
-      name: 'answer',
-      message: `Blank #${i + 1}:`,
-    }]);
-    userAnswers.push(answer.trim());
-  }
+  console.log(chalk.bold('--- Fill in the blanks line by line ---'));
+  for (const lineData of processedLines) {
+    if (lineData.originalWordsInThisLine.length === 0) {
+      console.log(lineData.blankedLineDisplay);
+      continue;
+    }
 
-  let score = 0;
-  const wordsToSave = new Set();
-  console.log(chalk.cyan.bold('\n--- Results ---'));
-  for (let i = 0; i < originalWords.length; i++) {
-    const original = originalWords[i].replace(/[^a-zA-Z0-9]/g, ''); // Clean punctuation
-    const answered = userAnswers[i];
-    if (original.toLowerCase() === answered.toLowerCase()) {
-      console.log(`${i + 1}. ${chalk.green(answered)} - Correct!`)
-      score++;
+    console.log(`\n${lineData.blankedLineDisplay}`);
+    const { userLineInput } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'userLineInput',
+        message: `Enter the missing word(s) for this line (separated by spaces):`,
+      },
+    ]);
+
+    const userAnswersForLine = userLineInput.split(' ').map(w => w.trim().toLowerCase()).filter(w => w !== '');
+    const originalWordsForLine = lineData.originalWordsInThisLine.map(w => w.toLowerCase());
+
+    let lineCorrect = true;
+    for (let i = 0; i < originalWordsForLine.length; i++) {
+      const originalWord = originalWordsForLine[i];
+      const userAnswer = userAnswersForLine[i];
+
+      if (userAnswer && originalWord === userAnswer) {
+        console.log(`  ${chalk.green('✔')} ${originalWord}`);
+        correctCount++;
+      } else {
+        console.log(`  ${chalk.red('✖')} Expected: ${chalk.yellow(originalWord)}, Got: ${chalk.red(userAnswer || '[empty]')}`);
+        missedWordsOverall.add(originalWord);
+        lineCorrect = false;
+      }
+    }
+    if (lineCorrect) {
+      console.log(chalk.green('  All correct for this line!'));
     } else {
-      console.log(`${i + 1}. ${chalk.red(answered)} - Incorrect. Correct word was: ${chalk.yellow(original)}`);
-      wordsToSave.add(original.toLowerCase());
+      console.log(chalk.red('  Some errors in this line.'));
     }
   }
-  console.log(chalk.bold(`\nYou scored ${score} out of ${originalWords.length}!\n`));
 
-  if (wordsToSave.size > 0) {
+  console.log(chalk.bold(`\n--- Session Complete ---`));
+  console.log(chalk.bold(`You got ${correctCount} out of ${totalBlanks} blanks correct!`));
+
+  if (missedWordsOverall.size > 0) {
     const { confirm } = await inquirer.prompt([
         {
             type: 'confirm',
@@ -162,7 +189,7 @@ async function interactiveMusicSession() {
     ]);
 
     if (confirm) {
-        for (const word of wordsToSave) {
+        for (const word of missedWordsOverall) {
             const { translation } = await inquirer.prompt([
                 {
                     type: 'input',
