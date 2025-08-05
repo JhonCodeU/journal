@@ -3,6 +3,16 @@ const inquirer = require('inquirer');
 const chalk = require('chalk');
 const { analyzeText } = require('./reader');
 const { addEntry, viewEntries } = require('./journal');
+const { viewVocabulary, getWordOfTheDay } = require('./vocabularyManager');
+
+function showWordOfTheDay() {
+  const word = getWordOfTheDay();
+  if (word) {
+    console.log(chalk.cyan.bold('\n--- Word of the Day ---'));
+    console.log(`${chalk.yellow(word.word)}: ${word.translation}`);
+    console.log('-----------------------\n');
+  }
+}
 
 async function mainMenu() {
   console.log(chalk.blue.bold('\nWelcome to your English Learning Journal!'));
@@ -16,6 +26,7 @@ async function mainMenu() {
         'Analyze a text',
         'Add a new journal entry',
         'View all journal entries',
+        'View my vocabulary',
         'Exit'
       ],
     },
@@ -32,6 +43,9 @@ async function mainMenu() {
     case 'View all journal entries':
       viewEntries();
       break;
+    case 'View my vocabulary':
+      viewVocabulary();
+      break;
     case 'Exit':
       console.log(chalk.green('Goodbye!'));
       return;
@@ -40,4 +54,5 @@ async function mainMenu() {
   mainMenu();
 }
 
+showWordOfTheDay();
 mainMenu();
