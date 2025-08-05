@@ -1,15 +1,53 @@
+require('dotenv').config();
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const { saveWord } = require('./vocabularyManager');
 
-const API_URL = 'https://api.lyrics.ovh/v1';
+const GENIUS_API_BASE_URL = 'https://api.genius.com';
+const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
 
-async function fetchLyrics(artist, title) {
+async function searchGenius(query) {
   try {
-    const response = await axios.get(`${API_URL}/${artist}/${title}`);
-    return response.data.lyrics;
+    const response = await axios.get(`${GENIUS_API_BASE_URL}/search`, {
+      headers: {
+        'Authorization': `Bearer ${GENIUS_ACCESS_TOKEN}`,
+      },
+      params: { q: query },
+    });
+    return response.data.response.hits;
   } catch (error) {
+    console.error(chalk.red('Error searching Genius API:'), error.message);
+    return [];
+  }
+}
+
+async function getLyricsFromGeniusPage(url) {
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+
+    // Genius lyrics are typically in a div with data-lyrics-container attribute
+    // or within a div with a specific class like 'lyrics'
+    let lyrics = '';
+    $('[data-lyrics-container="true"], .lyrics').each((i, elem) => {
+      lyrics += $(elem).text().trim() + '\n\n';
+    });
+
+    if (!lyrics) {
+      // Fallback for older structures or different layouts
+      lyrics = $('div.lyrics').text().trim();
+    }
+
+    // Clean up common annotations/extra text
+    lyrics = lyrics.replace(/\n\[.*?\]\n/g, '\n'); // Remove [Verse], [Chorus] etc.
+    lyrics = lyrics.replace(/\n\n\n/g, '\n\n'); // Reduce multiple newlines
+    lyrics = lyrics.trim();
+
+    return lyrics;
+  } catch (error) {
+    console.error(chalk.red('Error scraping lyrics from Genius page:'), error.message);
     return null;
   }
 }
@@ -26,7 +64,7 @@ function createFillInTheBlanks(lyrics, difficulty = 0.15) {
       originalWords.push(word);
       blankedCount++;
       return `[${chalk.yellow('_'.repeat(word.length))}]`;
-    } 
+    }
     return word;
   }).join('');
 
@@ -36,21 +74,50 @@ function createFillInTheBlanks(lyrics, difficulty = 0.15) {
 async function interactiveMusicSession() {
   console.log(chalk.cyan.bold('\n🎵 Welcome to the Interactive Music Session!\n'));
 
-  const { artist, title } = await inquirer.prompt([
-    { type: 'input', name: 'artist', message: 'Enter the artist:' },
-    { type: 'input', name: 'title', message: 'Enter the song title:' },
+  const { query } = await inquirer.prompt([
+    { type: 'input', name: 'query', message: 'Enter artist and song title (e.g., "Queen Bohemian Rhapsody"):' },
   ]);
 
-  console.log(chalk.blue(`\nSearching for lyrics for "${title}" by ${artist}...`));
-  const lyrics = await fetchLyrics(artist, title);
+  console.log(chalk.blue(`\nSearching Genius for "${query}"...`));
+  const hits = await searchGenius(query);
+
+  if (hits.length === 0) {
+    console.log(chalk.red('Sorry, no songs found on Genius for your query.\n'));
+    return;
+  }
+
+  const choices = hits.map((hit, index) => ({
+    name: `${index + 1}. ${hit.result.artist_names} - ${hit.result.title}`,
+    value: hit.result.url,
+  }));
+
+  choices.push(new inquirer.Separator());
+  choices.push({ name: 'Back to main menu', value: 'back' });
+
+  const { selectedSongUrl } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedSongUrl',
+      message: 'Select the correct song:',
+      choices: choices,
+      loop: false,
+    },
+  ]);
+
+  if (selectedSongUrl === 'back') {
+    return;
+  }
+
+  console.log(chalk.blue('Fetching lyrics from Genius page...'));
+  const lyrics = await getLyricsFromGeniusPage(selectedSongUrl);
 
   if (!lyrics) {
-    console.log(chalk.red('Sorry, lyrics not found. Please check the spelling or try another song.\n'));
+    console.log(chalk.red('Could not retrieve lyrics for the selected song.\n'));
     return;
   }
 
   console.log(chalk.green('Lyrics found! Get ready to play.\n'));
-  const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
+  const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
   console.log(`🎧 Listen to the song here: ${chalk.underline.blue(youtubeLink)}\n`);
 
   const { blankedLyrics, originalWords } = createFillInTheBlanks(lyrics);
@@ -60,7 +127,7 @@ async function interactiveMusicSession() {
 
   const userAnswers = [];
   for (let i = 0; i < originalWords.length; i++) {
-    const { answer } = await inquirer.prompt([{
+    const { answer } = await inquirer.prompt([{ 
       type: 'input',
       name: 'answer',
       message: `Blank #${i + 1}:`,
@@ -75,7 +142,7 @@ async function interactiveMusicSession() {
     const original = originalWords[i].replace(/[^a-zA-Z0-9]/g, ''); // Clean punctuation
     const answered = userAnswers[i];
     if (original.toLowerCase() === answered.toLowerCase()) {
-      console.log(`${i + 1}. ${chalk.green(answered)} - Correct!`);
+      console.log(`${i + 1}. ${chalk.green(answered)} - Correct!`)
       score++;
     } else {
       console.log(`${i + 1}. ${chalk.red(answered)} - Incorrect. Correct word was: ${chalk.yellow(original)}`);
@@ -85,12 +152,14 @@ async function interactiveMusicSession() {
   console.log(chalk.bold(`\nYou scored ${score} out of ${originalWords.length}!\n`));
 
   if (wordsToSave.size > 0) {
-    const { confirm } = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'confirm',
-        message: 'Do you want to save the words you missed to your vocabulary?',
-        default: true
-    }]);
+    const { confirm } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'confirm',
+            message: 'Do you want to save the words you missed to your vocabulary?',
+            default: true
+        }
+    ]);
 
     if (confirm) {
         for (const word of wordsToSave) {
