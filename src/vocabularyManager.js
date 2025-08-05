@@ -8,18 +8,39 @@ function getVocabulary() {
     return [];
   }
   const content = fs.readFileSync(VOCAB_FILE, 'utf8');
-  return JSON.parse(content);
+  let vocabulary = JSON.parse(content);
+
+  // One-time migration for old data structure
+  if (vocabulary.length > 0 && !vocabulary[0].hasOwnProperty('strength')) {
+    console.log(chalk.yellow('Migrating vocabulary to new format...'));
+    vocabulary = vocabulary.map(item => ({
+      word: item.word,
+      translation: item.translation,
+      strength: 1, // Initial strength
+      lastReviewed: new Date(0) // Represents a long time ago
+    }));
+    saveVocabulary(vocabulary);
+    console.log(chalk.green('Migration complete!'));
+  }
+
+  return vocabulary;
 }
 
 function saveVocabulary(vocabulary) {
   fs.writeFileSync(VOCAB_FILE, JSON.stringify(vocabulary, null, 2));
 }
 
-function saveWord(word) {
+function saveWord({ word, translation }) {
   const vocabulary = getVocabulary();
-  vocabulary.push(word);
+  const newWord = {
+    word,
+    translation,
+    strength: 1,
+    lastReviewed: new Date(0),
+  };
+  vocabulary.push(newWord);
   saveVocabulary(vocabulary);
-  console.log(chalk.green(`Saved "${word.word}" to your vocabulary.`));
+  console.log(chalk.green(`Saved "${word}" to your vocabulary.`));
 }
 
 function viewVocabulary() {
@@ -30,19 +51,10 @@ function viewVocabulary() {
   }
 
   console.log(chalk.cyan.bold('\n--- Your Vocabulary ---'));
-  vocabulary.forEach(({ word, translation }) => {
-    console.log(`${chalk.yellow(word)}: ${translation}`);
+  vocabulary.forEach(({ word, translation, strength }) => {
+    console.log(`${chalk.yellow(word)} (${chalk.blue('Strength:' + strength)}): ${translation}`);
   });
   console.log('\n---------------------');
 }
 
-function getWordOfTheDay() {
-  const vocabulary = getVocabulary();
-  if (vocabulary.length === 0) {
-    return null;
-  }
-  const randomIndex = Math.floor(Math.random() * vocabulary.length);
-  return vocabulary[randomIndex];
-}
-
-module.exports = { saveWord, viewVocabulary, getWordOfTheDay };
+module.exports = { getVocabulary, saveVocabulary, saveWord, viewVocabulary };

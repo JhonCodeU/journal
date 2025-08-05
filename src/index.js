@@ -2,15 +2,14 @@ const inquirer = require('inquirer');
 const chalk = require('chalk');
 const { analyzeText } = require('./reader');
 const { addEntry, viewEntries } = require('./journal');
-const { viewVocabulary, getWordOfTheDay } = require('./vocabularyManager');
+const { viewVocabulary } = require('./vocabularyManager');
 const { addMusicEntry, viewMusicEntries } = require('./music');
+const { reviewSession, getWordsToReview } = require('./srs');
 
-function showWordOfTheDay() {
-  const word = getWordOfTheDay();
-  if (word) {
-    console.log(chalk.cyan.bold('\n--- Word of the Day ---'));
-    console.log(`${chalk.yellow(word.word)}: ${word.translation}`);
-    console.log('-----------------------\n');
+function showReviewStatus() {
+  const wordsToReview = getWordsToReview();
+  if (wordsToReview.length > 0) {
+    console.log(chalk.yellow.bold(`\n🔔 You have ${wordsToReview.length} words to review today!`));
   }
 }
 
@@ -23,18 +22,24 @@ async function mainMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices: [
+        { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
+        new inquirer.Separator(),
         'Analyze a text',
         'Add a new journal entry',
         'View all journal entries',
         'Add a new music entry',
         'View all music entries',
         'View my vocabulary',
+        new inquirer.Separator(),
         'Exit'
       ],
     },
   ]);
 
   switch (answers.action) {
+    case 'review':
+      await reviewSession();
+      break;
     case 'Analyze a text':
       await analyzeText();
       break;
@@ -48,7 +53,7 @@ async function mainMenu() {
       await addMusicEntry();
       break;
     case 'View all music entries':
-      viewMusicEntries();
+      await viewMusicEntries();
       break;
     case 'View my vocabulary':
       viewVocabulary();
@@ -61,5 +66,5 @@ async function mainMenu() {
   mainMenu();
 }
 
-showWordOfTheDay();
+showReviewStatus();
 mainMenu();

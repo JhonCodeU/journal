@@ -1,10 +1,14 @@
 [
   {
     "word": "versatile",
-    "translation": "versatil"
+    "translation": "versatil",
+    "strength": 2,
+    "lastReviewed": "2025-08-05T16:26:46.979Z"
   },
   {
     "word": "excelling",
-    "translation": "sobresaliente"
+    "translation": "sobresaliente",
+    "strength": 1,
+    "lastReviewed": "2025-08-05T16:26:56.232Z"
   }
 ]
