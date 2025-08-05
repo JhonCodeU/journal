@@ -1,0 +1,25 @@
+{
+  "name": "journal",
+  "version": "1.0.0",
+  "description": "A Node.js CLI application to help learn English.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "english",
+    "learning",
+    "cli",
+    "journal"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.4",
+    "jsdom": "^24.1.0",
+    "say": "^0.16.0",
+    "spellchecker": "^3.7.1"
+  }
+}
