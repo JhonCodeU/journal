@@ -19,17 +19,27 @@ function getVocabulary() {
     return [];
   }
 
-  if (vocabulary.length > 0 && !vocabulary[0].hasOwnProperty('strength')) {
-    console.log(chalk.yellow('Migrating vocabulary to new format...'));
-    vocabulary = vocabulary.map(item => ({
-      word: item.word,
-      translation: item.translation,
-      strength: 1,
-      lastReviewed: new Date(0)
-    }));
+  let migrationNeeded = false;
+  if (vocabulary.length > 0) {
+    // Check for strength and example properties
+    if (!vocabulary[0].hasOwnProperty('strength') || !vocabulary[0].hasOwnProperty('example')) {
+      migrationNeeded = true;
+      console.log(chalk.yellow('Migrating vocabulary to new format...'));
+      vocabulary = vocabulary.map(item => ({
+        word: item.word,
+        translation: item.translation,
+        strength: item.strength || 1,
+        lastReviewed: item.lastReviewed || new Date(0),
+        example: item.example || null, // Add example field
+      }));
+    }
+  }
+
+  if (migrationNeeded) {
     saveVocabulary(vocabulary);
     console.log(chalk.green('Migration complete!'));
   }
+
 
   return vocabulary;
 }
@@ -38,18 +48,39 @@ function saveVocabulary(vocabulary) {
   fs.writeFileSync(VOCAB_FILE, JSON.stringify(vocabulary, null, 2));
 }
 
-function saveWord({ word, translation }) {
+async function saveWord({ word, translation }) {
   const vocabulary = getVocabulary();
+  if (vocabulary.some(v => v.word.toLowerCase() === word.toLowerCase())) {
+    console.log(chalk.yellow(`"${word}" is already in your vocabulary.`));
+    return;
+  }
+
+  let example = null;
+  try {
+    const response = await axios.get(`${DICTIONARY_API_URL}/${word}`);
+    const data = response.data[0];
+    const definitionWithExample = data.meanings
+      .flatMap(m => m.definitions)
+      .find(d => d.example);
+    if (definitionWithExample) {
+      example = definitionWithExample.example;
+    }
+  } catch (error) {
+    // It's okay if the API fails, we'll just save without an example.
+  }
+
   const newWord = {
     word,
     translation,
     strength: 1,
     lastReviewed: new Date(0),
+    example,
   };
   vocabulary.push(newWord);
   saveVocabulary(vocabulary);
   console.log(chalk.green(`Saved "${word}" to your vocabulary.`));
 }
+
 
 async function getWordDetails(word) {
   try {
@@ -58,13 +89,31 @@ async function getWordDetails(word) {
     const data = response.data[0];
 
     const phonetic = data.phonetic || (data.phonetics.find(p => p.text) || {}).text;
-    const definition = data.meanings[0].definitions[0].definition;
-    const example = data.meanings[0].definitions[0].example;
+    
+    let definition = 'N/A';
+    let example = 'N/A';
 
-    console.log(chalk.cyan.bold(`\n--- Details for ${word} ---\n`));
+    // Find the first definition and an example from any definition
+    if (data.meanings && data.meanings.length > 0) {
+      const firstMeaning = data.meanings[0];
+      if (firstMeaning.definitions && firstMeaning.definitions.length > 0) {
+        definition = firstMeaning.definitions[0].definition;
+      }
+
+      const definitionWithExample = data.meanings
+        .flatMap(m => m.definitions)
+        .find(d => d.example);
+      if (definitionWithExample) {
+        example = definitionWithExample.example;
+      }
+    }
+
+
+    console.log(chalk.cyan.bold(`\n--- Details for ${word} ---
+`));
     console.log(`${chalk.yellow('Phonetic:')} ${phonetic || 'N/A'}`);
-    console.log(`${chalk.yellow('Definition:')} ${definition || 'N/A'}`);
-    console.log(`${chalk.yellow('Example:')} ${example || 'N/A'}`);
+    console.log(`${chalk.yellow('Definition:')} ${definition}`);
+    console.log(`${chalk.yellow('Example:')} ${example}`);
     console.log('\n------------------------\n');
 
   } catch (error) {
@@ -113,3 +162,4 @@ async function viewVocabulary() {
 }
 
 module.exports = { getVocabulary, saveVocabulary, saveWord, viewVocabulary };
+

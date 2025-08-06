@@ -4,17 +4,18 @@ const { analyzeText } = require('./reader');
 const { addEntry, viewEntries } = require('./journal');
 const { viewVocabulary } = require('./vocabularyManager');
 const { interactiveMusicSession } = require('./music');
-const { reviewSession, getWordsToReview } = require('./srs');
+const { reviewSession, getWordsToReview, practiceSentences } = require('./srs');
 
 function showReviewStatus() {
   const wordsToReview = getWordsToReview();
   if (wordsToReview.length > 0) {
-    console.log(chalk.yellow.bold(`\n🔔 You have ${wordsToReview.length} words to review today!`));
+    console.log(chalk.yellow.bold(`
+⚠️ You have ${wordsToReview.length} words to review today!`));
   }
 }
 
 async function mainMenu() {
-  console.log(chalk.blue.bold('\nWelcome to your English Learning Journal!'));
+  console.log(chalk.blue.bold('Welcome to your English Learning Journal!'));
 
   const answers = await inquirer.prompt([
     {
@@ -23,6 +24,7 @@ async function mainMenu() {
       message: 'What would you like to do?',
       choices: [
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
+        { name: '✍️ Practice Sentences', value: 'practice' },
         { name: '🎵 Learn with Music (Interactive)', value: 'music' },
         new inquirer.Separator(),
         'Analyze a text',
@@ -38,6 +40,9 @@ async function mainMenu() {
   switch (answers.action) {
     case 'review':
       await reviewSession();
+      break;
+    case 'practice':
+      await practiceSentences();
       break;
     case 'music':
       await interactiveMusicSession();

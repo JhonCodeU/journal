@@ -56,4 +56,37 @@ async function reviewSession() {
   console.log(chalk.green.bold('\nReview session complete! Keep up the great work!\n'));
 }
 
-module.exports = { reviewSession, getWordsToReview };
+async function practiceSentences() {
+  const vocabulary = getVocabulary().filter(v => v.example);
+
+  if (vocabulary.length === 0) {
+    console.log(chalk.yellow('No words with example sentences found. Add some first!'));
+    return;
+  }
+
+  console.log(chalk.cyan.bold(`\n--- Practice Sentences: ${vocabulary.length} words to practice! ---\n`));
+
+  for (const word of vocabulary) {
+    const sentence = word.example;
+    const blankedSentence = sentence.replace(new RegExp(`\b${word.word}\b`, 'ig'), '_____');
+
+    const { answer } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'answer',
+        message: `Complete the sentence: ${chalk.yellow(blankedSentence)}`,
+      },
+    ]);
+
+    if (answer.toLowerCase().trim() === word.word.toLowerCase().trim()) {
+      console.log(chalk.green('Correct!\n'));
+    } else {
+      console.log(chalk.red(`Not quite. The correct answer is: ${chalk.bold(word.word)}\n`));
+    }
+  }
+
+  console.log(chalk.green.bold('\nSentence practice complete! Keep it up!\n'));
+}
+
+module.exports = { reviewSession, getWordsToReview, practiceSentences };
+
