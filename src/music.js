@@ -28,57 +28,95 @@ async function getLyricsFromGeniusPage(url) {
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
-    let lyrics = '';
-    $('[data-lyrics-container="true"], .lyrics').each((i, elem) => {
-      lyrics += $(elem).text().trim() + '\n\n';
+    const lyricsContainers = $('[data-lyrics-container="true"], .lyrics');
+    if (lyricsContainers.length === 0) return null;
+
+    let fullText = '';
+    lyricsContainers.each((i, elem) => {
+        // Use .html() to preserve line breaks (<br> tags)
+        const html = $(elem).html();
+        // Replace <br> tags with newlines and decode HTML entities
+        const text = html.replace(/<br>/g, '\n').replace(/<.*?>/g, '');
+        fullText += text + '\n\n';
     });
 
-    if (!lyrics) {
-      lyrics = $('div.lyrics').text().trim();
+    const sections = [];
+    const lines = fullText.split('\n').filter(line => line.trim() !== '');
+    let currentSection = { title: 'Intro', lines: [] };
+
+    for (const line of lines) {
+        const match = line.trim().match(/^\s*\[(.*?)\]\s*$/);
+        if (match) {
+            if (currentSection.lines.length > 0) {
+                sections.push(currentSection);
+            }
+            currentSection = { title: match[1], lines: [] };
+        } else {
+            currentSection.lines.push(line.trim());
+        }
+    }
+    if (currentSection.lines.length > 0) {
+        sections.push(currentSection);
     }
 
-    lyrics = lyrics.replace(/\n\[.*?\]\n/g, '\n');
-    lyrics = lyrics.replace(/\n\n\n/g, '\n\n');
-    lyrics = lyrics.trim();
+    return sections;
 
-    return lyrics;
   } catch (error) {
     console.error(chalk.red('Error scraping lyrics from Genius page:'), error.message);
     return null;
   }
 }
 
-function createFillInTheBlanks(lyrics, difficulty = 0.15) {
-  const lines = lyrics.split('\n').filter(line => line.trim() !== '');
-  const processedLines = [];
+function createFillInTheBlanks(sections, difficulty = 0.15) {
+  const processedSections = [];
   const allOriginalWords = [];
 
-  lines.forEach(line => {
-    const wordsInLine = line.split(/(\s+)/); 
-    let blankedLineDisplay = '';
-    const originalWordsInThisLine = [];
-    let blankedCountInLine = 0;
-    const totalFillableWordsInLine = wordsInLine.filter(w => w.trim() !== '' && w.match(/[a-zA-Z]/)).length;
-    const targetBlankedInLine = Math.floor(totalFillableWordsInLine * difficulty);
+  sections.forEach(section => {
+    const processedLines = [];
+    section.lines.forEach(line => {
+        const wordsInLine = line.split(/(\s+)/); 
+        let blankedLineDisplay = '';
+        const originalWordsInThisLine = [];
+        
+        const fillableWords = wordsInLine.filter(w => w.trim() !== '' && w.match(/[a-zA-Z]/));
+        const targetBlankedCount = Math.ceil(fillableWords.length * difficulty);
+        const indicesToBlank = new Set();
+        
+        // Get indices of fillable words
+        const fillableIndices = [];
+        wordsInLine.forEach((w, i) => {
+            if (w.trim() !== '' && w.match(/[a-zA-Z]/)) {
+                fillableIndices.push(i);
+            }
+        });
 
-    wordsInLine.forEach(part => {
-      const cleanedPart = part.trim();
-      if (cleanedPart !== '' && cleanedPart.match(/[a-zA-Z]/) && Math.random() < difficulty && blankedCountInLine < targetBlankedInLine) {
-        originalWordsInThisLine.push(cleanedPart);
-        allOriginalWords.push(cleanedPart);
-        blankedCountInLine++;
-        blankedLineDisplay += `[${chalk.yellow('_'.repeat(cleanedPart.length))}]`;
-      } else {
-        blankedLineDisplay += part;
-      }
+        // Randomly select indices to blank
+        while (indicesToBlank.size < targetBlankedCount && indicesToBlank.size < fillableIndices.length) {
+            const randomIndex = Math.floor(Math.random() * fillableIndices.length);
+            indicesToBlank.add(fillableIndices[randomIndex]);
+        }
+
+        wordsInLine.forEach((part, index) => {
+            const cleanedPart = part.trim().replace(/[^a-zA-Z0-9'’]/g, '');
+            if (indicesToBlank.has(index)) {
+                originalWordsInThisLine.push(cleanedPart);
+                allOriginalWords.push(cleanedPart);
+                blankedLineDisplay += `[${chalk.yellow('_'.repeat(cleanedPart.length))}]`;
+            } else {
+                blankedLineDisplay += part;
+            }
+        });
+
+        processedLines.push({
+            originalLine: line,
+            blankedLineDisplay: blankedLineDisplay,
+            originalWordsInThisLine: originalWordsInThisLine
+        });
     });
-    processedLines.push({
-      originalLine: line,
-      blankedLineDisplay: blankedLineDisplay,
-      originalWordsInThisLine: originalWordsInThisLine
-    });
+    processedSections.push({ title: section.title, lines: processedLines });
   });
-  return { processedLines, allOriginalWords };
+
+  return { processedSections, allOriginalWords };
 }
 
 async function interactiveMusicSession() {
@@ -119,10 +157,10 @@ async function interactiveMusicSession() {
   }
 
   console.log(chalk.blue('Fetching lyrics from Genius page...'));
-  const lyrics = await getLyricsFromGeniusPage(selectedSongUrl);
+  const lyricSections = await getLyricsFromGeniusPage(selectedSongUrl);
 
-  if (!lyrics) {
-    console.log(chalk.red('Could not retrieve lyrics for the selected song.\n'));
+  if (!lyricSections || lyricSections.length === 0) {
+    console.log(chalk.red('Could not retrieve or parse lyrics for the selected song.\n'));
     return;
   }
 
@@ -130,48 +168,65 @@ async function interactiveMusicSession() {
   const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
   console.log(`🎧 Listen to the song here: ${chalk.underline.blue(youtubeLink)}\n`);
 
-  const { processedLines, allOriginalWords } = createFillInTheBlanks(lyrics);
+  const { difficulty } = await inquirer.prompt([
+    {
+        type: 'list',
+        name: 'difficulty',
+        message: 'Select a difficulty level:',
+        choices: [
+            { name: 'Easy (approx. 15% of words)', value: 0.15 },
+            { name: 'Medium (approx. 30% of words)', value: 0.30 },
+            { name: 'Hard (approx. 50% of words)', value: 0.50 },
+        ],
+        default: 0.15
+    }
+  ]);
+
+  const { processedSections, allOriginalWords } = createFillInTheBlanks(lyricSections, difficulty);
   const missedWordsOverall = new Set();
   let correctCount = 0;
   let totalBlanks = allOriginalWords.length;
 
-  console.log(chalk.bold('--- Fill in the blanks line by line ---'));
-  for (const lineData of processedLines) {
-    if (lineData.originalWordsInThisLine.length === 0) {
-      console.log(lineData.blankedLineDisplay);
-      continue;
-    }
+  console.log(chalk.bold('--- Fill in the blanks section by section ---'));
+  for (const section of processedSections) {
+    console.log(chalk.magenta.bold(`\n--- ${section.title} ---\n`));
+    for (const lineData of section.lines) {
+        if (lineData.originalWordsInThisLine.length === 0) {
+            console.log(lineData.blankedLineDisplay);
+            continue;
+        }
 
-    console.log(`\n${lineData.blankedLineDisplay}`);
-    const { userLineInput } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'userLineInput',
-        message: `Enter the missing word(s) for this line (separated by spaces):`,
-      },
-    ]);
+        console.log(`\n${lineData.blankedLineDisplay}`);
+        const { userLineInput } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'userLineInput',
+            message: `Enter the missing word(s) for this line (separated by spaces):`,
+        },
+        ]);
 
-    const userAnswersForLine = userLineInput.split(' ').map(w => w.trim().toLowerCase()).filter(w => w !== '');
-    const originalWordsForLine = lineData.originalWordsInThisLine.map(w => w.toLowerCase());
+        const userAnswersForLine = userLineInput.split(' ').map(w => w.trim().toLowerCase()).filter(w => w !== '');
+        const originalWordsForLine = lineData.originalWordsInThisLine.map(w => w.toLowerCase().replace(/[^a-zA-Z0-9'’]/g, ''));
 
-    let lineCorrect = true;
-    for (let i = 0; i < originalWordsForLine.length; i++) {
-      const originalWord = originalWordsForLine[i];
-      const userAnswer = userAnswersForLine[i];
+        let lineCorrect = true;
+        for (let i = 0; i < originalWordsForLine.length; i++) {
+            const originalWord = originalWordsForLine[i];
+            const userAnswer = userAnswersForLine[i];
 
-      if (userAnswer && originalWord === userAnswer) {
-        console.log(`  ${chalk.green('✔')} ${originalWord}`);
-        correctCount++;
-      } else {
-        console.log(`  ${chalk.red('✖')} Expected: ${chalk.yellow(originalWord)}, Got: ${chalk.red(userAnswer || '[empty]')}`);
-        missedWordsOverall.add(originalWord);
-        lineCorrect = false;
-      }
-    }
-    if (lineCorrect) {
-      console.log(chalk.green('  All correct for this line!'));
-    } else {
-      console.log(chalk.red('  Some errors in this line.'));
+            if (userAnswer && originalWord === userAnswer) {
+                console.log(`  ${chalk.green('✔')} ${originalWord}`);
+                correctCount++;
+            } else {
+                console.log(`  ${chalk.red('✖')} Expected: ${chalk.yellow(originalWord)}, Got: ${chalk.red(userAnswer || '[empty]')}`);
+                missedWordsOverall.add(lineData.originalWordsInThisLine[i]); // Save the original case word
+                lineCorrect = false;
+            }
+        }
+        if (lineCorrect) {
+            console.log(chalk.green('  All correct for this line!'));
+        } else {
+            console.log(chalk.red('  Some errors in this line.'));
+        }
     }
   }
 
@@ -198,7 +253,7 @@ async function interactiveMusicSession() {
                 }
             ]);
             if (translation) {
-                saveWord({ word, translation });
+                await saveWord({ word, translation });
             }
         }
     }
@@ -206,3 +261,4 @@ async function interactiveMusicSession() {
 }
 
 module.exports = { interactiveMusicSession };
+
