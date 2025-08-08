@@ -13,22 +13,25 @@ async function analyzeText() {
   ]);
 
   const text = answers.text;
-  const words = text.split(/\s+/);
+  const words = text.match(/\b[a-zA-Z]+\b/g) || [];
   const difficultWords = new Set();
 
-  const highlightedText = words.map(word => {
-    const cleanedWord = word.toLowerCase().replace(/[^a-z]/g, '');
-    if (cleanedWord && !commonWords.has(cleanedWord)) {
-      difficultWords.add(cleanedWord);
-      return chalk.yellow(word);
-    } else {
-      return word;
+  words.forEach(word => {
+    const cleanedWord = word.toLowerCase();
+    if (!commonWords.has(cleanedWord)) {
+      difficultWords.add(word);
     }
-  }).join(' ');
+  });
 
-  console.log('\n--- Analyzed Text ---');
+  let highlightedText = text;
+  difficultWords.forEach(word => {
+    const regex = new RegExp(`\b${word}\b`, 'g');
+    highlightedText = highlightedText.replace(regex, chalk.yellow(word));
+  });
+
+  console.log('\n--- Reading Mode ---');
   console.log(highlightedText);
-  console.log('\n---------------------');
+  console.log('\n--------------------');
 
   if (difficultWords.size > 0) {
     const { confirm } = await inquirer.prompt([
