@@ -1,9 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import 'dotenv/config';
 import chalk from 'chalk';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const MODEL_NAME = "gemini-2.0-flash";
 
 export function checkAPIKey(): boolean {
     if (!process.env.GEMINI_API_KEY) {
@@ -15,46 +15,46 @@ export function checkAPIKey(): boolean {
 }
 
 export async function getAIExample(word: string, translation: string): Promise<string> {
-    const prompt = `Generate a simple, natural English example sentence for the word "${word}" (which means "${translation}" in Spanish). 
-    The sentence should be easy to understand for an English learner. 
-    Return ONLY the English sentence, nothing else.`;
-
     try {
-        const result = await model.generateContent(prompt);
-        return result.response.text().trim();
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: `Generate a simple, natural English example sentence for the word "${word}" (which means "${translation}" in Spanish). Return ONLY the English sentence.`
+        });
+        return response.text || `I like the word ${word}.`;
     } catch (error) {
-        return `I like the word ${word}.`; // Fallback
+        console.error(error);
+        return `I like the word ${word}.`;
     }
 }
 
 export async function getStylisticFeedback(text: string): Promise<string> {
-    const prompt = `Analyze the following English text written by a student: "${text}".
-    Provide a brief, friendly suggestion on how to make it sound more natural or native-like. 
-    If it's already perfect, just say "Great job! This sounds very natural."
-    Keep the feedback under 3 sentences.`;
-
     try {
-        const result = await model.generateContent(prompt);
-        return result.response.text().trim();
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: `Analyze the following English text: "${text}". Keep feedback under 3 sentences.`
+        });
+        return response.text || "Keep practicing!";
     } catch (error) {
         return "Keep practicing!";
     }
 }
 
-export async function chatWithTutor(history: { role: "user" | "model", parts: { text: string }[] }[]) {
-    const chat = model.startChat({
+export async function createChatSession() {
+    return ai.chats.create({
+        model: MODEL_NAME,
+        config: {
+            temperature: 0.7,
+            systemInstruction: "You are a friendly English tutor. Correct my grammar briefly and continue the topic.",
+        },
         history: [
             {
                 role: "user",
-                parts: [{ text: "You are a friendly English tutor. Your goal is to help me practice conversation. Correct my grammar briefly if I make a mistake, then answer my question or continue the topic." }],
+                parts: [{ text: "Hello!" }]
             },
             {
                 role: "model",
-                parts: [{ text: "Hi! I'm your English tutor. I'd love to chat with you. What would you like to talk about today?" }],
-            },
-            ...history
-        ],
+                parts: [{ text: "Hello! I'm your friendly English tutor. What would you like to talk about today?" }]
+            }
+        ]
     });
-
-    return chat;
 }
