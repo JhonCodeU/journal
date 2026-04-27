@@ -3,11 +3,13 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import axios from 'axios';
 import { VocabularyItem } from './types.js';
+import { getAIExample } from './aiManager.js';
 
 const VOCAB_FILE = './vocabulary.json';
 const DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 
 export function getVocabulary(): VocabularyItem[] {
+  // ... (stays the same)
   if (!fs.existsSync(VOCAB_FILE)) {
     return [];
   }
@@ -31,7 +33,7 @@ export function getVocabulary(): VocabularyItem[] {
         strength: item.strength || 1,
         lastReviewed: item.lastReviewed || new Date(0).toISOString(),
         example: item.example || null,
-      }));
+      }));  
     }
   }
 
@@ -65,7 +67,12 @@ export async function saveWord({ word, translation }: { word: string, translatio
       example = definitionWithExample.example;
     }
   } catch (error) {
-    // Dictionary API fail is non-fatal
+    // Dictionary API fail
+  }
+
+  if (!example) {
+      console.log(chalk.blue(`Generating AI example for "${word}"...`));
+      example = await getAIExample(word, translation);
   }
 
   const newWord: VocabularyItem = {
@@ -77,8 +84,9 @@ export async function saveWord({ word, translation }: { word: string, translatio
   };
   vocabulary.push(newWord);
   saveVocabulary(vocabulary);
-  console.log(chalk.green(`Saved "${word}" to your vocabulary.`));
+  console.log(chalk.green(`Saved "${word}" with example: ${chalk.italic(example)}`));
 }
+// ... (rest of the file)
 
 export async function getWordDetails(word: string): Promise<void> {
   try {
