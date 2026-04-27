@@ -1,25 +1,36 @@
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const { analyzeText } = require('./reader');
-const { addEntry, viewEntries } = require('./journal');
-const { viewVocabulary } = require('./vocabularyManager');
-const { interactiveMusicSession } = require('./music');
-const { reviewSession, getWordsToReview, practiceSentences } = require('./srs');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import { analyzeText } from './reader.js';
+import { addEntry, viewEntries } from './journal.js';
+import { viewVocabulary } from './vocabularyManager.js';
+import { interactiveMusicSession } from './music.js';
+import { reviewSession, getWordsToReview, practiceSentences } from './srs.js';
+import { updateStreak, getStatsDisplay } from './statsManager.js';
 
-function showReviewStatus() {
+function showStatus(): void {
   const wordsToReview = getWordsToReview();
+  const stats = getStatsDisplay();
+
+  console.log(chalk.blue.bold('\n' + '='.repeat(40)));
+  console.log(chalk.cyan.bold(`  Lvl ${stats.level} | 🔥 Streak: ${stats.streak} days`));
+  console.log(chalk.magenta(`  XP: ${stats.xp} (${stats.progress})`));
+  console.log(chalk.blue.bold('='.repeat(40) + '\n'));
+
   if (wordsToReview.length > 0) {
-    console.log(chalk.yellow.bold(`
-⚠️ You have ${wordsToReview.length} words to review today!`));
+    console.log(chalk.yellow.bold(`  ⚠️  You have ${wordsToReview.length} words to review today!`));
+  } else {
+    console.log(chalk.green.bold(`  ✅ All words are reviewed! Excellent.`));
   }
+  console.log('');
 }
 
-async function mainMenu() {
-  console.log(chalk.blue.bold('Welcome to your English Learning Journal!'));
+async function mainMenu(): Promise<void> {
+  updateStreak();
+  showStatus();
 
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'action',
       message: 'What would you like to do?',
       choices: [
@@ -54,18 +65,17 @@ async function mainMenu() {
       await addEntry();
       break;
     case 'View all journal entries':
-      viewEntries();
+      await viewEntries();
       break;
     case 'View my vocabulary':
-      viewVocabulary();
+      await viewVocabulary();
       break;
     case 'Exit':
       console.log(chalk.green('Goodbye!'));
-      return;
+      process.exit(0);
   }
 
   mainMenu();
 }
 
-showReviewStatus();
 mainMenu();

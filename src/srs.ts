@@ -1,22 +1,23 @@
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const { getVocabulary, saveVocabulary } = require('./vocabularyManager');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import { getVocabulary, saveVocabulary } from './vocabularyManager.js';
+import { addXP } from './statsManager.js';
+import { VocabularyItem } from './types.js';
 
-// Simple SRS logic: words with lower strength or not reviewed recently get prioritized.
-function getWordsToReview() {
+export function getWordsToReview(): VocabularyItem[] {
   const vocabulary = getVocabulary();
   const now = new Date();
 
   return vocabulary
     .filter(word => {
-      const daysSinceReview = (now - new Date(word.lastReviewed)) / (1000 * 60 * 60 * 24);
-      // Review if strength is low or it's been a while
+      const lastReviewed = word.lastReviewed ? new Date(word.lastReviewed) : new Date(0);
+      const daysSinceReview = (now.getTime() - lastReviewed.getTime()) / (1000 * 60 * 60 * 24);
       return daysSinceReview >= word.strength;
     })
-    .sort((a, b) => a.strength - b.strength); // Prioritize weaker words
+    .sort((a, b) => a.strength - b.strength);
 }
 
-async function reviewSession() {
+export async function reviewSession(): Promise<void> {
   const wordsToReview = getWordsToReview();
 
   if (wordsToReview.length === 0) {
@@ -26,6 +27,7 @@ async function reviewSession() {
 
   console.log(chalk.cyan.bold(`\n--- Review Session: ${wordsToReview.length} words to go! ---\n`));
 
+  let sessionXP = 0;
   for (const word of wordsToReview) {
     const { answer } = await inquirer.prompt([
       {
@@ -38,13 +40,16 @@ async function reviewSession() {
     if (answer.toLowerCase().trim() === word.translation.toLowerCase().trim()) {
       console.log(chalk.green('Correct!\n'));
       word.strength += 1;
+      sessionXP += 10;
     } else {
       console.log(chalk.red(`Not quite. The correct answer is: ${chalk.bold(word.translation)}\n`));
-      word.strength = Math.max(1, word.strength - 1); // Decrease strength, but not below 1
+      word.strength = Math.max(1, word.strength - 1);
+      sessionXP += 2;
     }
-    word.lastReviewed = new Date();
+    word.lastReviewed = new Date().toISOString();
   }
 
+  addXP(sessionXP);
   const vocabulary = getVocabulary();
   const updatedVocabulary = vocabulary.map(v => {
     const reviewedWord = wordsToReview.find(rw => rw.word === v.word);
@@ -56,7 +61,7 @@ async function reviewSession() {
   console.log(chalk.green.bold('\nReview session complete! Keep up the great work!\n'));
 }
 
-async function practiceSentences() {
+export async function practiceSentences(): Promise<void> {
   const vocabulary = getVocabulary().filter(v => v.example);
 
   if (vocabulary.length === 0) {
@@ -67,8 +72,8 @@ async function practiceSentences() {
   console.log(chalk.cyan.bold(`\n--- Practice Sentences: ${vocabulary.length} words to practice! ---\n`));
 
   for (const word of vocabulary) {
-    const sentence = word.example;
-    const blankedSentence = sentence.replace(new RegExp(`\b${word.word}\b`, 'ig'), '_____');
+    const sentence = word.example!;
+    const blankedSentence = sentence.replace(new RegExp(`\\b${word.word}\\b`, 'ig'), '_____');
 
     const { answer } = await inquirer.prompt([
       {
@@ -80,6 +85,7 @@ async function practiceSentences() {
 
     if (answer.toLowerCase().trim() === word.word.toLowerCase().trim()) {
       console.log(chalk.green('Correct!\n'));
+      addXP(5);
     } else {
       console.log(chalk.red(`Not quite. The correct answer is: ${chalk.bold(word.word)}\n`));
     }
@@ -87,6 +93,3 @@ async function practiceSentences() {
 
   console.log(chalk.green.bold('\nSentence practice complete! Keep it up!\n'));
 }
-
-module.exports = { reviewSession, getWordsToReview, practiceSentences };
-

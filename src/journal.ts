@@ -1,22 +1,24 @@
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const fs = require('fs');
-const LanguageTool = require('languagetool-api');
-const { saveWord } = require('./vocabularyManager');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import fs from 'fs';
+// @ts-ignore
+import LanguageTool from 'languagetool-api';
+import { saveWord } from './vocabularyManager.js';
+import { JournalEntry } from './types.js';
 
 const DB_FILE = './storage.json';
 
 // --- Utility Functions for Grammar Check ---
-function checkGrammar(text) {
+function checkGrammar(text: string): Promise<any> {
     return new Promise((resolve, reject) => {
-        LanguageTool.check({ text, language: 'en-US' }, (error, output) => {
+        LanguageTool.check({ text, language: 'en-US' }, (error: any, output: any) => {
             if (error) reject(error);
             else resolve(output);
         });
     });
 }
 
-async function applyCorrections(text) {
+async function applyCorrections(text: string): Promise<string> {
     console.log(chalk.blue('\nChecking grammar and style...'));
     try {
         const grammarCheckResult = await checkGrammar(text);
@@ -49,14 +51,14 @@ async function applyCorrections(text) {
         console.log(chalk.yellow('-------------------------------------'));
         return currentText;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(chalk.red('Error during grammar check:'), error.message);
         return text;
     }
 }
 
 // --- Journal Functions ---
-function getEntries() {
+export function getEntries(): JournalEntry[] {
     if (!fs.existsSync(DB_FILE)) return [];
     try {
         return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -66,11 +68,11 @@ function getEntries() {
     }
 }
 
-function saveEntries(entries) {
+export function saveEntries(entries: JournalEntry[]): void {
     fs.writeFileSync(DB_FILE, JSON.stringify(entries, null, 2));
 }
 
-async function addEntry() {
+export async function addEntry(): Promise<void> {
     const podcastInfo = await inquirer.prompt([
         { type: 'input', name: 'podcastName', message: 'Podcast/Audio Name:' },
         { type: 'input', name: 'episode', message: 'Episode/Chapter:' },
@@ -89,7 +91,7 @@ async function addEntry() {
         },
     ]);
 
-    const newWords = content.newWords.split(',').map(w => w.trim()).filter(Boolean);
+    const newWords: string[] = content.newWords.split(',').map((w: string) => w.trim()).filter(Boolean);
     if (newWords.length > 0) {
         console.log(chalk.cyan('\n--- Adding New Words to Vocabulary ---'));
         for (const word of newWords) {
@@ -106,8 +108,9 @@ async function addEntry() {
     console.log(chalk.bold('\n--- Reviewing Your Writing ---'));
     const correctedSummary = await applyCorrections(content.summary);
 
-    const finalEntry = {
-        ...podcastInfo,
+    const finalEntry: JournalEntry = {
+        podcastName: podcastInfo.podcastName,
+        episode: podcastInfo.episode,
         date: new Date().toISOString(),
         description: correctedSummary,
         newWords: newWords,
@@ -119,7 +122,7 @@ async function addEntry() {
     console.log(chalk.green.bold('\n✨ Journal entry saved successfully! ✨'));
 }
 
-async function viewEntries() {
+export async function viewEntries(): Promise<void> {
     while (true) {
         const entries = getEntries();
         if (entries.length === 0) {
@@ -127,7 +130,7 @@ async function viewEntries() {
             return;
         }
 
-        const choices = entries.map((entry, index) => ({
+        const choices: any[] = entries.map((entry, index) => ({
             name: `${new Date(entry.date).toLocaleDateString()} - ${chalk.bold(entry.podcastName)} - ${entry.episode}`, 
             value: index,
         }));
@@ -136,7 +139,7 @@ async function viewEntries() {
 
         const { selectedIndex } = await inquirer.prompt([
             {
-                type: 'list',
+                type: 'select',
                 name: 'selectedIndex',
                 message: 'Select a journal entry to view, edit, or delete:',
                 choices: choices,
@@ -147,8 +150,7 @@ async function viewEntries() {
         if (selectedIndex === 'back') return;
 
         const entry = entries[selectedIndex];
-        console.log(chalk.cyan.bold(`\n--- Entry Details ---
-`));
+        console.log(chalk.cyan.bold(`\n--- Entry Details ---\n`));
         console.log(entry.description);
         if (entry.newWords && entry.newWords.length > 0) {
             console.log(chalk.yellow(`\nNew Vocabulary:`), entry.newWords.join(', '));
@@ -157,7 +159,7 @@ async function viewEntries() {
 
         const { action } = await inquirer.prompt([
             {
-                type: 'list',
+                type: 'select',
                 name: 'action',
                 message: 'What do you want to do?',
                 choices: ['Edit Summary', 'Delete Entry', new inquirer.Separator(), 'Go Back'],
@@ -194,6 +196,3 @@ async function viewEntries() {
         }
     }
 }
-
-module.exports = { addEntry, viewEntries };
-

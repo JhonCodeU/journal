@@ -1,9 +1,9 @@
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const { commonWords } = require('./vocabulary');
-const { saveWord } = require('./vocabularyManager');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import { commonWords } from './vocabulary.js';
+import { saveWord } from './vocabularyManager.js';
 
-async function analyzeText() {
+export async function analyzeText(): Promise<void> {
   const answers = await inquirer.prompt([
     {
       type: 'editor',
@@ -12,9 +12,9 @@ async function analyzeText() {
     },
   ]);
 
-  const text = answers.text;
+  const text: string = answers.text;
   const words = text.match(/\b[a-zA-Z]+\b/g) || [];
-  const difficultWords = new Set();
+  const difficultWords = new Set<string>();
 
   words.forEach(word => {
     const cleanedWord = word.toLowerCase();
@@ -25,7 +25,7 @@ async function analyzeText() {
 
   let highlightedText = text;
   difficultWords.forEach(word => {
-    const regex = new RegExp(`\b${word}\b`, 'g');
+    const regex = new RegExp(`\\b${word}\\b`, 'g');
     highlightedText = highlightedText.replace(regex, chalk.yellow(word));
   });
 
@@ -61,10 +61,8 @@ async function analyzeText() {
             message: `Enter the Spanish translation for "${word}":`,
           },
         ]);
-        saveWord({ word, translation });
+        await saveWord({ word, translation });
       }
     }
   }
 }
-
-module.exports = { analyzeText };

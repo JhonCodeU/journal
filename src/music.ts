@@ -1,14 +1,14 @@
-require('dotenv').config();
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { saveWord } = require('./vocabularyManager');
+import 'dotenv/config';
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { saveWord } from './vocabularyManager.js';
 
 const GENIUS_API_BASE_URL = 'https://api.genius.com';
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
 
-async function searchGenius(query) {
+async function searchGenius(query: string): Promise<any[]> {
   try {
     const response = await axios.get(`${GENIUS_API_BASE_URL}/search`, {
       headers: {
@@ -17,13 +17,13 @@ async function searchGenius(query) {
       params: { q: query },
     });
     return response.data.response.hits;
-  } catch (error) {
+  } catch (error: any) {
     console.error(chalk.red('Error searching Genius API:'), error.message);
     return [];
   }
 }
 
-async function getLyricsFromGeniusPage(url) {
+async function getLyricsFromGeniusPage(url: string): Promise<any[] | null> {
   try {
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
@@ -33,16 +33,14 @@ async function getLyricsFromGeniusPage(url) {
 
     let fullText = '';
     lyricsContainers.each((i, elem) => {
-        // Use .html() to preserve line breaks (<br> tags)
-        const html = $(elem).html();
-        // Replace <br> tags with newlines and decode HTML entities
+        const html = $(elem).html() || '';
         const text = html.replace(/<br>/g, '\n').replace(/<.*?>/g, '');
         fullText += text + '\n\n';
     });
 
-    const sections = [];
+    const sections: any[] = [];
     const lines = fullText.split('\n').filter(line => line.trim() !== '');
-    let currentSection = { title: 'Intro', lines: [] };
+    let currentSection: { title: string, lines: string[] } = { title: 'Intro', lines: [] };
 
     for (const line of lines) {
         const match = line.trim().match(/^\s*\[(.*?)\]\s*$/);
@@ -61,36 +59,34 @@ async function getLyricsFromGeniusPage(url) {
 
     return sections;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(chalk.red('Error scraping lyrics from Genius page:'), error.message);
     return null;
   }
 }
 
-function createFillInTheBlanks(sections, difficulty = 0.15) {
-  const processedSections = [];
-  const allOriginalWords = [];
+function createFillInTheBlanks(sections: any[], difficulty: number = 0.15) {
+  const processedSections: any[] = [];
+  const allOriginalWords: string[] = [];
 
   sections.forEach(section => {
-    const processedLines = [];
-    section.lines.forEach(line => {
+    const processedLines: any[] = [];
+    section.lines.forEach((line: string) => {
         const wordsInLine = line.split(/(\s+)/); 
         let blankedLineDisplay = '';
-        const originalWordsInThisLine = [];
+        const originalWordsInThisLine: string[] = [];
         
         const fillableWords = wordsInLine.filter(w => w.trim() !== '' && w.match(/[a-zA-Z]/));
         const targetBlankedCount = Math.ceil(fillableWords.length * difficulty);
-        const indicesToBlank = new Set();
+        const indicesToBlank = new Set<number>();
         
-        // Get indices of fillable words
-        const fillableIndices = [];
+        const fillableIndices: number[] = [];
         wordsInLine.forEach((w, i) => {
             if (w.trim() !== '' && w.match(/[a-zA-Z]/)) {
                 fillableIndices.push(i);
             }
         });
 
-        // Randomly select indices to blank
         while (indicesToBlank.size < targetBlankedCount && indicesToBlank.size < fillableIndices.length) {
             const randomIndex = Math.floor(Math.random() * fillableIndices.length);
             indicesToBlank.add(fillableIndices[randomIndex]);
@@ -119,7 +115,7 @@ function createFillInTheBlanks(sections, difficulty = 0.15) {
   return { processedSections, allOriginalWords };
 }
 
-async function interactiveMusicSession() {
+export async function interactiveMusicSession(): Promise<void> {
   console.log(chalk.cyan.bold('\n🎵 Welcome to the Interactive Music Session!\n'));
 
   const { query } = await inquirer.prompt([
@@ -134,7 +130,7 @@ async function interactiveMusicSession() {
     return;
   }
 
-  const choices = hits.map((hit, index) => ({
+  const choices: any[] = hits.map((hit, index) => ({
     name: `${index + 1}. ${hit.result.artist_names} - ${hit.result.title}`,
     value: hit.result.url,
   }));
@@ -144,7 +140,7 @@ async function interactiveMusicSession() {
 
   const { selectedSongUrl } = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'selectedSongUrl',
       message: 'Select the correct song:',
       choices: choices,
@@ -170,7 +166,7 @@ async function interactiveMusicSession() {
 
   const { difficulty } = await inquirer.prompt([
     {
-        type: 'list',
+        type: 'select',
         name: 'difficulty',
         message: 'Select a difficulty level:',
         choices: [
@@ -183,7 +179,7 @@ async function interactiveMusicSession() {
   ]);
 
   const { processedSections, allOriginalWords } = createFillInTheBlanks(lyricSections, difficulty);
-  const missedWordsOverall = new Set();
+  const missedWordsOverall = new Set<string>();
   let correctCount = 0;
   let totalBlanks = allOriginalWords.length;
 
@@ -205,8 +201,8 @@ async function interactiveMusicSession() {
         },
         ]);
 
-        const userAnswersForLine = userLineInput.split(' ').map(w => w.trim().toLowerCase()).filter(w => w !== '');
-        const originalWordsForLine = lineData.originalWordsInThisLine.map(w => w.toLowerCase().replace(/[^a-zA-Z0-9'’]/g, ''));
+        const userAnswersForLine = userLineInput.split(' ').map((w: string) => w.trim().toLowerCase()).filter((w: string) => w !== '');
+        const originalWordsForLine = lineData.originalWordsInThisLine.map((w: string) => w.toLowerCase().replace(/[^a-zA-Z0-9'’]/g, ''));
 
         let lineCorrect = true;
         for (let i = 0; i < originalWordsForLine.length; i++) {
@@ -218,7 +214,7 @@ async function interactiveMusicSession() {
                 correctCount++;
             } else {
                 console.log(`  ${chalk.red('✖')} Expected: ${chalk.yellow(originalWord)}, Got: ${chalk.red(userAnswer || '[empty]')}`);
-                missedWordsOverall.add(lineData.originalWordsInThisLine[i]); // Save the original case word
+                missedWordsOverall.add(lineData.originalWordsInThisLine[i]);
                 lineCorrect = false;
             }
         }
@@ -259,6 +255,3 @@ async function interactiveMusicSession() {
     }
   }
 }
-
-module.exports = { interactiveMusicSession };
-

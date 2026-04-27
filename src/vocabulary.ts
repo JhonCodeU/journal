@@ -1,7 +1,6 @@
-
 // A list of the 1000 most common English words.
 // Source: https://gist.github.com/deekayen/4148741
-const commonWords = new Set([
+export const commonWords: Set<string> = new Set([
   "a", "about", "all", "also", "and", "as", "at", "be", "because", "but", "by",
   "can", "come", "could", "day", "do", "even", "find", "first", "for", "from",
   "get", "give", "go", "have", "he", "her", "here", "him", "his", "how", "I",
@@ -87,5 +86,3 @@ const commonWords = new Set([
   "winter", "wish", "within", "wood", "wouldn't", "wrong", "yet", "you'd",
   "you'll", "you're", "you've", "zero", "zoo"
 ]);
-
-module.exports = { commonWords };
