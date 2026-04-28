@@ -7,6 +7,7 @@
 Esta aplicación te ofrece las siguientes funcionalidades:
 
 -   **🧠 Sistema de Repetición Espaciada (SRS) para Vocabulario:** Repasa palabras de tu vocabulario personal en intervalos óptimos para una memorización a largo plazo. La aplicación te avisará cuando tengas palabras pendientes de repaso.
+-   **🌐 Lectura de Artículos Web:** Lee artículos de noticias en línea y marca páginas como leídas. Recibe XP por cada página leída.
 -   **📝 Análisis de Texto:** Pega cualquier texto (noticias, artículos, etc.) y la aplicación resaltará las palabras que no son comunes, ayudándote a identificar y aprender nuevo vocabulario. Puedes guardar estas palabras en tu vocabulario personal.
 -   **📖 Lectura de Libros (PDF):** Lee libros en formato PDF y marca páginas como leídas. Recibe XP por cada página leída.
 -   **🎵 Aprende con Música (Modo Interactivo):** Busca canciones por artista y título en Genius, obtén las letras y juega a "Completa la Letra" línea por línea. Recibe retroalimentación instantánea y guarda las palabras que te cuesten en tu vocabulario.
