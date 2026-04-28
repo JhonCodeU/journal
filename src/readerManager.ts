@@ -4,7 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
-import { getStylisticFeedback } from './aiManager.js';
+import { getStylisticFeedback, simplifyToA2 } from './aiManager.js';
 import { saveWord } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
@@ -35,18 +35,18 @@ export async function openPDFHub() {
     const progress = getProgress();
     
     const choices = [
-        { name: '📖 Continue Reading', value: 'continue' },
-        { name: '➕ Open New PDF', value: 'open' },
-        { name: '📚 My Library', value: 'library' },
+        { name: '📖 Continuar Leyendo', value: 'continue' },
+        { name: '➕ Abrir Nuevo PDF', value: 'open' },
+        { name: '📚 Mi Biblioteca', value: 'library' },
         new inquirer.Separator(),
-        { name: 'Go Back', value: 'back' }
+        { name: 'Volver', value: 'back' }
     ];
 
     const { action } = await inquirer.prompt([
         {
             type: 'list',
             name: 'action',
-            message: 'PDF Library:',
+            message: 'Biblioteca PDF:',
             choices
         }
     ]);
@@ -54,7 +54,7 @@ export async function openPDFHub() {
     switch (action) {
         case 'continue':
             if (!progress.currentBook) {
-                console.log(chalk.yellow('\nNo book is currently open.\n'));
+                console.log(chalk.yellow('\nNo hay ningún libro abierto.\n'));
                 return openPDFHub();
             }
             await readBook(progress.currentBook);
@@ -77,8 +77,8 @@ export async function openWebReader() {
         {
             type: 'input',
             name: 'url',
-            message: 'Enter the URL of the article:',
-            validate: (input) => input.startsWith('http') ? true : 'Please enter a valid URL.'
+            message: 'Introduce la URL del artículo:',
+            validate: (input) => input.startsWith('http') ? true : 'Por favor, introduce una URL válida.'
         }
     ]);
 
@@ -105,14 +105,14 @@ async function openNewPDF() {
         {
             type: 'input',
             name: 'filePath',
-            message: 'Enter the path to the PDF file:',
-            validate: (input) => fs.existsSync(input) && input.endsWith('.pdf') ? true : 'Please enter a valid PDF path.'
+            message: 'Introduce la ruta al archivo PDF:',
+            validate: (input) => fs.existsSync(input) && input.endsWith('.pdf') ? true : 'Por favor, introduce una ruta de PDF válida.'
         }
     ]);
 
     const dataBuffer = fs.readFileSync(filePath);
     try {
-        console.log(chalk.blue('\nAnalyzing PDF...'));
+        console.log(chalk.blue('\nAnalizando PDF...'));
         const parser = new PDFParse({ data: dataBuffer });
         const data = await parser.getText();
         
@@ -127,10 +127,10 @@ async function openNewPDF() {
         progress.currentBook = title;
         saveProgress(progress);
 
-        console.log(chalk.green(`\nSuccess! "${title}" added to your library.`));
+        console.log(chalk.green(`\n¡Éxito! "${title}" añadido a tu biblioteca.`));
         await readBook(title);
     } catch (error: any) {
-        console.log(chalk.red(`\nError reading PDF: ${error.message}`));
+        console.log(chalk.red(`\nError leyendo PDF: ${error.message}`));
     }
 }
 
@@ -163,13 +163,14 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             {
                 type: 'select',
                 name: 'action',
-                message: 'Controls:',
+                message: 'Controles de lectura:',
                 choices: [
-                    { name: '➡️ Next Page', value: 'next' },
-                    { name: '⬅️ Previous Page', value: 'prev' },
-                    { name: '🤖 Ask AI to Explain this part', value: 'explain' },
-                    { name: '💾 Save Vocabulary', value: 'vocab' },
-                    { name: '🚪 Close Book', value: 'exit' }
+                    { name: '➡️  Siguiente Página', value: 'next', disabled: currentIndex >= pages.length - 1 ? '(Última página)' : false },
+                    { name: '⬅️  Página Anterior', value: 'prev', disabled: currentIndex === 0 ? '(Primera página)' : false },
+                    { name: '✨  Simplificar a nivel A2 (IA)', value: 'simplify' },
+                    { name: '🤖  IA: Explicar esta parte', value: 'explain' },
+                    { name: '💾  Guardar Vocabulario', value: 'vocab' },
+                    { name: '🚪  Cerrar', value: 'exit' }
                 ]
             }
         ]);
@@ -191,17 +192,26 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     saveProgress(progress);
                 }
             }
+        } else if (action === 'simplify') {
+            console.log(chalk.blue('\nSimplificando texto para nivel A2...'));
+            const simplified = await simplifyToA2(pages[currentIndex].text);
+            console.clear();
+            console.log(chalk.blue.bold(`\n✨ MODO SIMPLIFICADO A2 ✨`));
+            console.log(chalk.cyan('='.repeat(50)));
+            console.log(`\n${simplified}\n`);
+            console.log(chalk.cyan('='.repeat(50)));
+            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver al texto original...' }]);
         } else if (action === 'explain') {
-            console.log(chalk.blue('\nAI is analyzing this part...'));
-            const explanation = await getStylisticFeedback(`Explain this part and summarize it simply: ${pages[currentIndex].text}`);
-            console.log(chalk.magenta.bold('\n--- AI Explanation ---'));
+            console.log(chalk.blue('\nAnalizando con IA...'));
+            const explanation = await getStylisticFeedback(`Explica esta parte de forma sencilla en inglés y español: ${pages[currentIndex].text}`);
+            console.log(chalk.magenta.bold('\n--- Explicación del Tutor ---'));
             console.log(explanation);
-            console.log(chalk.magenta.bold('----------------------'));
-            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Press Enter to continue...' }]);
+            console.log(chalk.magenta.bold('----------------------------'));
+            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver a la lectura...' }]);
         } else if (action === 'vocab') {
-            const { word } = await inquirer.prompt([{ type: 'input', name: 'word', message: 'Enter the word you want to save:' }]);
+            const { word } = await inquirer.prompt([{ type: 'input', name: 'word', message: 'Palabra que quieres guardar:' }]);
             if (word) {
-                const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Spanish translation for "${word}":` }]);
+                const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
                 if (translation) {
                     await saveWord({ word, translation });
                     addXP(10);
@@ -218,7 +228,7 @@ async function showLibrary() {
     const bookTitles = Object.keys(progress.books);
 
     if (bookTitles.length === 0) {
-        console.log(chalk.yellow('\nYour library is empty.\n'));
+        console.log(chalk.yellow('\nTu biblioteca está vacía.\n'));
         return;
     }
 
@@ -226,12 +236,12 @@ async function showLibrary() {
         {
             type: 'list',
             name: 'selectedTitle',
-            message: 'Select a book to read:',
-            choices: [...bookTitles, 'Back']
+            message: 'Selecciona un libro para leer:',
+            choices: [...bookTitles, 'Volver']
         }
     ]);
 
-    if (selectedTitle === 'Back') return;
+    if (selectedTitle === 'Volver') return;
     
     const progressUpdate = getProgress();
     progressUpdate.currentBook = selectedTitle;

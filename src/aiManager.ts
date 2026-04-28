@@ -39,6 +39,34 @@ export async function getStylisticFeedback(text: string): Promise<string> {
     }
 }
 
+export async function simplifyToA2(text: string): Promise<string> {
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: `Rewrite the following English text to a level A2 (Elementary) learner. Use simple vocabulary, short sentences, and common grammar. Maintain the original meaning. Text: "${text}"`
+        });
+        return response.text || text;
+    } catch (error) {
+        return text;
+    }
+}
+
+export async function getJournalFeedback(text: string): Promise<string> {
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: `As an English tutor, provide feedback for this journal entry: "${text}". 
+            Structure your response like this:
+            1. **Corrected Version**: A natural and grammatically correct version.
+            2. **Key Corrections**: Briefly explain 2-3 important grammar or vocabulary improvements.
+            Keep it encouraging and clear for an A2 learner.`
+        });
+        return response.text || "Good job on your entry! Keep writing.";
+    } catch (error) {
+        return "Keep writing! You are doing great.";
+    }
+}
+
 export async function createChatSession() {
     return ai.chats.create({
         model: MODEL_NAME,

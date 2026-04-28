@@ -5,7 +5,7 @@ import fs from 'fs';
 import LanguageTool from 'languagetool-api';
 import { saveWord } from './vocabularyManager.js';
 import { JournalEntry } from './types.js';
-import { getStylisticFeedback } from './aiManager.js';
+import { getJournalFeedback } from './aiManager.js';
 import { addXP } from './statsManager.js';
 
 const DB_FILE = './storage.json';
@@ -107,14 +107,16 @@ export async function addEntry(): Promise<void> {
         console.log(chalk.green('Vocabulary updated!\n'));
     }
 
-    console.log(chalk.bold('\n--- Reviewing Your Writing ---'));
+    console.log(chalk.bold('\n--- Analyzing Your Writing ---'));
     const correctedSummary = await applyCorrections(content.summary);
 
-    console.log(chalk.blue('\nGetting Stylistic AI Feedback...'));
-    const aiFeedback = await getStylisticFeedback(correctedSummary);
-    console.log(chalk.magenta.bold('\n--- AI Tutor Feedback ---'));
-    console.log(chalk.italic(aiFeedback));
-    console.log(chalk.magenta.bold('--------------------------\n'));
+    console.log(chalk.blue('\nGetting Detailed AI Tutor Feedback...'));
+    const aiFeedback = await getJournalFeedback(correctedSummary);
+    console.log(chalk.magenta.bold('\n' + '='.repeat(40)));
+    console.log(chalk.magenta.bold('       🌟 AI TUTOR FEEDBACK 🌟'));
+    console.log(chalk.magenta.bold('='.repeat(40)));
+    console.log(aiFeedback);
+    console.log(chalk.magenta.bold('='.repeat(40) + '\n'));
 
     const finalEntry: JournalEntry = {
         podcastName: podcastInfo.podcastName,
