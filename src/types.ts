@@ -22,3 +22,14 @@ export interface UserStats {
     totalWordsLearned: number;
     totalJournalEntries: number;
 }
+
+export interface ReadingProgress {
+    currentBook: string | null;
+    books: {
+        [title: string]: {
+            totalPages: number;
+            lastPageRead: number;
+            path: string;
+        }
+    };
+}

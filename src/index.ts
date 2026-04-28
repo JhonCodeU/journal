@@ -7,6 +7,7 @@ import { interactiveMusicSession } from './music.js';
 import { reviewSession, getWordsToReview, practiceSentences } from './srs.js';
 import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
+import { openReadingHub } from './readerManager.js';
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -45,9 +46,7 @@ async function startChatSession() {
                 break;
             }
 
-            const result = await chat.sendMessage({
-                message: userInput,
-            });
+            const result = await chat.sendMessage(userInput);
             console.log(`\n${chalk.green('Tutor:')} ${result.text}\n`);
             addXP(5); 
         }
@@ -68,6 +67,7 @@ async function mainMenu(): Promise<void> {
       name: 'action',
       message: 'What would you like to do?',
       choices: [
+        { name: '📖 Reading Hub (PDF)', value: 'reading' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
@@ -84,6 +84,9 @@ async function mainMenu(): Promise<void> {
   ]);
 
   switch (answers.action) {
+    case 'reading':
+        await openReadingHub();
+        break;
     case 'chat':
         await startChatSession();
         break;
