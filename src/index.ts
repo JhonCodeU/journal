@@ -7,7 +7,7 @@ import { interactiveMusicSession } from './music.js';
 import { reviewSession, getWordsToReview, practiceSentences } from './srs.js';
 import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
-import { openReadingHub } from './readerManager.js';
+import { openPDFHub, openWebReader } from './readerManager.js';
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -67,7 +67,8 @@ async function mainMenu(): Promise<void> {
       name: 'action',
       message: 'What would you like to do?',
       choices: [
-        { name: '📖 Reading Hub (PDF)', value: 'reading' },
+        { name: '📖 PDF Reader (Books)', value: 'pdf' },
+        { name: '🌐 Web Reader (Articles)', value: 'web' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
@@ -84,8 +85,11 @@ async function mainMenu(): Promise<void> {
   ]);
 
   switch (answers.action) {
-    case 'reading':
-        await openReadingHub();
+    case 'pdf':
+        await openPDFHub();
+        break;
+    case 'web':
+        await openWebReader();
         break;
     case 'chat':
         await startChatSession();

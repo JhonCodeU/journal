@@ -7,6 +7,7 @@ import { ReadingProgress } from './types.js';
 import { getStylisticFeedback } from './aiManager.js';
 import { saveWord } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
+import { fetchArticle } from './webReader.js';
 
 const PROGRESS_FILE = './reading_progress.json';
 
@@ -28,7 +29,9 @@ function saveProgress(progress: ReadingProgress) {
     fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
 }
 
-export async function openReadingHub() {
+// --- PDF READER SECTION ---
+
+export async function openPDFHub() {
     const progress = getProgress();
     
     const choices = [
@@ -41,9 +44,9 @@ export async function openReadingHub() {
 
     const { action } = await inquirer.prompt([
         {
-            type: 'select',
+            type: 'list',
             name: 'action',
-            message: 'Reading Hub:',
+            message: 'PDF Library:',
             choices
         }
     ]);
@@ -52,7 +55,7 @@ export async function openReadingHub() {
         case 'continue':
             if (!progress.currentBook) {
                 console.log(chalk.yellow('\nNo book is currently open.\n'));
-                return openReadingHub();
+                return openPDFHub();
             }
             await readBook(progress.currentBook);
             break;
@@ -66,6 +69,36 @@ export async function openReadingHub() {
             return;
     }
 }
+
+// --- WEB READER SECTION ---
+
+export async function openWebReader() {
+    const { url } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'url',
+            message: 'Enter the URL of the article:',
+            validate: (input) => input.startsWith('http') ? true : 'Please enter a valid URL.'
+        }
+    ]);
+
+    const article = await fetchArticle(url);
+    if (article) {
+        // Split content into "pages" (approx 2000 chars each)
+        const pageSize = 2000;
+        const pages = [];
+        for (let i = 0; i < article.content.length; i += pageSize) {
+            pages.push({
+                text: article.content.substring(i, i + pageSize),
+                num: Math.floor(i / pageSize) + 1
+            });
+        }
+
+        await displayReader(article.title, pages);
+    }
+}
+
+// --- SHARED CORE LOGIC ---
 
 async function openNewPDF() {
     const { filePath } = await inquirer.prompt([
@@ -109,18 +142,22 @@ async function readBook(title: string) {
     const parser = new PDFParse({ data: dataBuffer });
     const data = await parser.getText();
     
-    // In this version, data.text is the concatenated text
-    // data.pages is an array of { text, num }
     const pages = data.pages;
-    
-    let currentIndex = book.lastPageRead - 1;
+    await displayReader(title, pages, book.lastPageRead - 1, true);
+}
+
+async function displayReader(title: string, pages: any[], startIndex: number = 0, isBook: boolean = false) {
+    let currentIndex = startIndex;
+    const progress = getProgress();
 
     while (currentIndex < pages.length) {
         console.clear();
-        console.log(chalk.blue.bold(`\n📖 ${title} | Page ${pages[currentIndex].num} of ${data.total}`));
+        console.log(chalk.blue.bold(`\n📖 ${title}`));
+        console.log(chalk.gray(`Página ${currentIndex + 1} de ${pages.length}`));
         console.log(chalk.cyan('='.repeat(50)));
         console.log(`\n${pages[currentIndex].text.trim()}\n`);
         console.log(chalk.cyan('='.repeat(50)));
+        console.log(chalk.italic.gray(' (Usa las flechas ↑/↓ para elegir y Enter para confirmar)\n'));
 
         const { action } = await inquirer.prompt([
             {
@@ -140,12 +177,20 @@ async function readBook(title: string) {
         if (action === 'next') {
             if (currentIndex < pages.length - 1) {
                 currentIndex++;
-                book.lastPageRead = currentIndex + 1;
-                saveProgress(progress);
-                addXP(5); // XP for reading a page
+                if (isBook && progress.books[title]) {
+                    progress.books[title].lastPageRead = currentIndex + 1;
+                    saveProgress(progress);
+                }
+                addXP(5);
             }
         } else if (action === 'prev') {
-            if (currentIndex > 0) currentIndex--;
+            if (currentIndex > 0) {
+                currentIndex--;
+                if (isBook && progress.books[title]) {
+                    progress.books[title].lastPageRead = currentIndex + 1;
+                    saveProgress(progress);
+                }
+            }
         } else if (action === 'explain') {
             console.log(chalk.blue('\nAI is analyzing this part...'));
             const explanation = await getStylisticFeedback(`Explain this part and summarize it simply: ${pages[currentIndex].text}`);
@@ -179,7 +224,7 @@ async function showLibrary() {
 
     const { selectedTitle } = await inquirer.prompt([
         {
-            type: 'select',
+            type: 'list',
             name: 'selectedTitle',
             message: 'Select a book to read:',
             choices: [...bookTitles, 'Back']
