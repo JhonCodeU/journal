@@ -8,6 +8,7 @@ Esta aplicación te ofrece las siguientes funcionalidades:
 
 -   **🧠 Sistema de Repetición Espaciada (SRS) para Vocabulario:** Repasa palabras de tu vocabulario personal en intervalos óptimos para una memorización a largo plazo. La aplicación te avisará cuando tengas palabras pendientes de repaso.
 -   **📝 Análisis de Texto:** Pega cualquier texto (noticias, artículos, etc.) y la aplicación resaltará las palabras que no son comunes, ayudándote a identificar y aprender nuevo vocabulario. Puedes guardar estas palabras en tu vocabulario personal.
+-   **📖 Lectura de Libros (PDF):** Lee libros en formato PDF y marca páginas como leídas. Recibe XP por cada página leída.
 -   **🎵 Aprende con Música (Modo Interactivo):** Busca canciones por artista y título en Genius, obtén las letras y juega a "Completa la Letra" línea por línea. Recibe retroalimentación instantánea y guarda las palabras que te cuesten en tu vocabulario.
 -   **🎧 Diario de Escucha (Podcasts/Audios):** Registra los podcasts o audios que escuchas, incluyendo el nombre, episodio y una descripción de lo que entendiste. Incluye un corrector ortográfico y gramatical avanzado para mejorar tu escritura.
 -   **📖 Gestión de Vocabulario:** Visualiza tu vocabulario personal. Al seleccionar una palabra, la aplicación buscará y mostrará su pronunciación, definición y ejemplos de uso (requiere conexión a internet).
@@ -19,8 +20,7 @@ Para poner en marcha la aplicación, sigue estos sencillos pasos:
 
 1.  **Clona o descarga el repositorio:**
     ```bash
-    git clone <URL_DEL_REPOSITORIO> # Si tienes un repositorio
-    # O descarga el ZIP y descomprímelo
+    git clone https://github.com/JhonCodeU/journalApp.git
     ```
 
 2.  **Navega al directorio del proyecto:**
