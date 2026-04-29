@@ -1,88 +1,80 @@
-import { GoogleGenAI } from "@google/genai";
-import 'dotenv/config';
+import axios from 'axios';
 import chalk from 'chalk';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-const MODEL_NAME = "gemini-2.0-flash";
+const OLLAMA_URL = "http://localhost:11434/api";
+const MODEL_NAME = "llama3";
 
 export function checkAPIKey(): boolean {
-    if (!process.env.GEMINI_API_KEY) {
-        console.log(chalk.red.bold('\n❌ Error: GEMINI_API_KEY not found in .env file.'));
-        console.log(chalk.yellow('Please add GEMINI_API_KEY=your_key_here to your .env file.\n'));
-        return false;
+    return true; 
+}
+
+async function callOllama(prompt: string, system: string = "") {
+    try {
+        const response = await axios.post(`${OLLAMA_URL}/generate`, {
+            model: MODEL_NAME,
+            prompt: prompt,
+            system: system,
+            stream: false,
+            options: {
+                temperature: 0.7
+            }
+        });
+        return response.data.response;
+    } catch (error: any) {
+        console.log(chalk.red('\n❌ Error: No se pudo conectar con Ollama.'));
+        console.log(chalk.yellow('Asegúrate de que Ollama esté abierto y hayas ejecutado: ollama run llama3\n'));
+        return "";
     }
-    return true;
 }
 
 export async function getAIExample(word: string, translation: string): Promise<string> {
-    try {
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: `Generate a simple, natural English example sentence for the word "${word}" (which means "${translation}" in Spanish). Return ONLY the English sentence.`
-        });
-        return response.text || `I like the word ${word}.`;
-    } catch (error) {
-        console.error(error);
-        return `I like the word ${word}.`;
-    }
+    const prompt = `Generate a simple, natural English example sentence for the word "${word}" (which means "${translation}" in Spanish). Return ONLY the English sentence, nothing else.`;
+    return await callOllama(prompt);
 }
 
 export async function getStylisticFeedback(text: string): Promise<string> {
-    try {
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: `Analyze the following English text: "${text}". Keep feedback under 3 sentences.`
-        });
-        return response.text || "Keep practicing!";
-    } catch (error) {
-        return "Keep practicing!";
-    }
+    const prompt = `Analyze the following English text: "${text}". Provide brief feedback for a learner (max 3 sentences).`;
+    return await callOllama(prompt, "You are a helpful English teacher.");
 }
 
 export async function simplifyToA2(text: string): Promise<string> {
-    try {
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: `Rewrite the following English text to a level A2 (Elementary) learner. Use simple vocabulary, short sentences, and common grammar. Maintain the original meaning. Text: "${text}"`
-        });
-        return response.text || text;
-    } catch (error) {
-        return text;
-    }
+    const prompt = `Rewrite this text to a level A2 (Elementary) learner. Use simple vocabulary and short sentences. Maintain the meaning: "${text}"`;
+    return await callOllama(prompt, "You are an expert at simplifying English for beginners.");
 }
 
 export async function getJournalFeedback(text: string): Promise<string> {
-    try {
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: `As an English tutor, provide feedback for this journal entry: "${text}". 
-            Structure your response like this:
-            1. **Corrected Version**: A natural and grammatically correct version.
-            2. **Key Corrections**: Briefly explain 2-3 important grammar or vocabulary improvements.
-            Keep it encouraging and clear for an A2 learner.`
-        });
-        return response.text || "Good job on your entry! Keep writing.";
-    } catch (error) {
-        return "Keep writing! You are doing great.";
-    }
+    const prompt = `Provide feedback for this journal entry: "${text}". 
+    Structure your response like this:
+    1. **Corrected Version**: A natural version.
+    2. **Key Corrections**: Explain 2 important improvements.`;
+    
+    return await callOllama(prompt, "You are a friendly English tutor for A2 students.");
 }
 
+// Emulación del sistema de chat de Gemini para Ollama
 export async function createChatSession() {
-    return ai.chats.create({
-        model: MODEL_NAME,
-        config: {
-            temperature: 0.7,
-            systemInstruction: "You are a friendly English tutor. Correct my grammar briefly and continue the topic.",
-        },
-        history: [
-            {
-                role: "user",
-                parts: [{ text: "Hello!" }]
-            },
-            {
-                role: "model",
-                parts: [{ text: "Hello! I'm your friendly English tutor. What would you like to talk about today?" }]
+    let history: { role: string, content: string }[] = [
+        { role: "system", content: "You are a friendly English tutor. Correct my grammar briefly and continue the topic." }
+    ];
+
+    return {
+        sendMessage: async (message: string) => {
+            history.push({ role: "user", content: message });
+            
+            try {
+                const response = await axios.post(`${OLLAMA_URL}/chat`, {
+                    model: MODEL_NAME,
+                    messages: history,
+                    stream: false
+                });
+
+                const aiResponse = response.data.message.content;
+                history.push({ role: "assistant", content: aiResponse });
+                
+                return { text: aiResponse };
+            } catch (error) {
+                return { text: "I'm sorry, I'm having trouble connecting to my brain (Ollama)." };
             }
-        ]
-    });
+        }
+    };
 }
