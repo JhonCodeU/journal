@@ -10,7 +10,7 @@ const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type InteractionMode = 'word-by-word' | 'full-line';
+type InteractionMode = 'word-by-word' | 'full-line' | 'multiple-choice';
 
 interface ProcessedLine {
   originalLine: string;
@@ -166,6 +166,22 @@ function createFillInTheBlanks(
   return { processedSections, totalBlanks: blankIndex };
 }
 
+function getAllWordsFromSections(sections: { title: string; lines: string[] }[]): string[] {
+  const words = new Set<string>();
+  for (const section of sections) {
+    for (const line of section.lines) {
+      const tokens = line.split(/[\s,.;:!?()"]+/);
+      for (const token of tokens) {
+        const clean = token.replace(/[^a-zA-Z0-9']/g, '');
+        if (clean && clean.length > 1) {
+          words.add(clean);
+        }
+      }
+    }
+  }
+  return Array.from(words);
+}
+
 // ─── Renderizado de líneas ────────────────────────────────────────────────────
 
 function renderLineWithBlanks(parts: LinePart[]): string {
@@ -244,6 +260,60 @@ async function playWordByWord(
         console.log(chalk.red(`  ✖ Era: ${chalk.yellow(blank.content)}`));
         missedWords.add(blank.content);
       }
+    }
+  }
+
+  return correct;
+}
+
+// Modo Multiple Choice - Elegir entre 3 opciones
+async function playMultipleChoice(
+  parts: LinePart[],
+  missedWords: Set<string>,
+  answers: Map<number, string>,
+  allWords: string[]
+): Promise<number> {
+  const blanks = parts.filter(p => p.type === 'blank');
+  let correct = 0;
+
+  console.log(`\n  ${renderLineWithBlanks(parts)}`);
+
+  for (const blank of blanks) {
+    const expected = normalizeWord(blank.content);
+    
+    // Generar distractores de la misma canción
+    let distractors = allWords
+      .filter(w => normalizeWord(w) !== expected)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 2);
+    
+    // Si no hay suficientes palabras, usar comunes
+    const common = ['love', 'time', 'life', 'heart', 'baby', 'yeah', 'night', 'world'];
+    while (distractors.length < 2) {
+      const extra = common[Math.floor(Math.random() * common.length)];
+      if (normalizeWord(extra) !== expected && !distractors.includes(extra)) {
+        distractors.push(extra);
+      }
+    }
+
+    const choices = [blank.content, ...distractors]
+      .sort(() => Math.random() - 0.5);
+
+    const { selected } = await inquirer.prompt([{
+      type: 'select',
+      name: 'selected',
+      message: chalk.dim(`  Blank [${blank.index + 1}]:`),
+      choices: choices.map(c => ({ name: c, value: c })),
+      prefix: '  →',
+    }]);
+
+    answers.set(blank.index, selected);
+    if (normalizeWord(selected) === expected) {
+      console.log(chalk.green(`  ✔ ¡Correcto!`));
+      correct++;
+    } else {
+      console.log(chalk.red(`  ✖ Era: ${chalk.yellow(blank.content)}`));
+      missedWords.add(blank.content);
     }
   }
 
@@ -370,6 +440,7 @@ export async function interactiveMusicSession(): Promise<void> {
     name: 'mode',
     message: '¿Cómo quieres jugar?',
     choices: [
+      { name: 'Opción múltiple    (LyricsTraining style - elegir entre 3)', value: 'multiple-choice' },
       { name: 'Palabra por palabra  (un prompt por cada blank)', value: 'word-by-word' },
       { name: 'Línea completa       (todas las palabras del renglón juntas)', value: 'full-line' },
     ],
@@ -399,6 +470,7 @@ export async function interactiveMusicSession(): Promise<void> {
   console.log(`🎧 Escúchala aquí: ${chalk.underline.blue(youtubeLink)}\n`);
 
   const { processedSections, totalBlanks } = createFillInTheBlanks(lyricSections, difficulty);
+  const allWordsInSong = getAllWordsFromSections(lyricSections);
 
   const missedWords = new Set<string>();
   const answers = new Map<number, string>();
@@ -421,7 +493,9 @@ export async function interactiveMusicSession(): Promise<void> {
       }
 
       let lineCorrect: number;
-      if (mode === 'word-by-word') {
+      if (mode === 'multiple-choice') {
+        lineCorrect = await playMultipleChoice(lineData.parts, missedWords, answers, allWordsInSong);
+      } else if (mode === 'word-by-word') {
         lineCorrect = await playWordByWord(lineData.parts, missedWords, answers);
       } else {
         lineCorrect = await playFullLine(lineData.parts, missedWords, answers);
