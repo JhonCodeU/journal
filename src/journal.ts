@@ -74,6 +74,20 @@ export function saveEntries(entries: JournalEntry[]): void {
     fs.writeFileSync(DB_FILE, JSON.stringify(entries, null, 2));
 }
 
+export async function saveEntry(content: string): Promise<void> {
+    const entries = getEntries();
+    const newEntry: JournalEntry = {
+        podcastName: 'Podcast Study',
+        episode: 'Manual Entry',
+        date: new Date().toISOString(),
+        description: content,
+        newWords: []
+    };
+    entries.push(newEntry);
+    saveEntries(entries);
+    addXP(10);
+}
+
 export async function addEntry(): Promise<void> {
     const podcastInfo = await inquirer.prompt([
         { type: 'input', name: 'podcastName', message: 'Podcast/Audio Name:' },

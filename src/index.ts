@@ -8,6 +8,7 @@ import { reviewSession, getWordsToReview, practiceSentences } from './srs.js';
 import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
 import { openPDFHub, openWebReader } from './readerManager.js';
+import { interactivePodcastSession } from './podcast.js';
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -69,6 +70,7 @@ async function mainMenu(): Promise<void> {
       choices: [
         { name: '📖 PDF Reader (Books)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
+        { name: '🎙️ Podcasts (Spotify)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
@@ -90,6 +92,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'web':
         await openWebReader();
+        break;
+    case 'podcast':
+        await interactivePodcastSession();
         break;
     case 'chat':
         await startChatSession();
