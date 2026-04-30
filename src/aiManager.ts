@@ -51,6 +51,16 @@ export async function getJournalFeedback(text: string): Promise<string> {
     return await callOllama(prompt, "You are a friendly English tutor for A2 students.");
 }
 
+export async function getSongContext(title: string, artist: string, lyricsSample: string): Promise<string> {
+    const prompt = `Song: "${title}" by ${artist}. 
+    Lyrics sample: "${lyricsSample.substring(0, 500)}..."
+    Provide:
+    1. A 2-sentence summary of what the song is about in Spanish.
+    2. List 2-3 interesting slang words or idioms found in the song with their meaning in Spanish.`;
+    
+    return await callOllama(prompt, "You are a music expert and English teacher.");
+}
+
 // Emulación del sistema de chat de Gemini para Ollama
 export async function createChatSession() {
     let history: { role: string, content: string }[] = [

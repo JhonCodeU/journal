@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { saveWord } from './vocabularyManager.js';
+import { getSongContext } from './aiManager.js';
 
 const GENIUS_API_BASE_URL = 'https://api.genius.com';
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
@@ -57,9 +58,6 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
       fullText += html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '') + '\n\n';
     });
 
-    // FIX 1: Filtrar líneas de metadata de Genius
-    // Genius mete "NContributorsTranslations[idiomas]..." antes del primer verso.
-    // Detectamos el primer encabezado de sección real y descartamos todo lo anterior.
     const rawLines = fullText.split('\n');
     let firstSectionFound = false;
     const cleanLines: string[] = [];
@@ -67,12 +65,10 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     for (const line of rawLines) {
       const trimmed = line.trim();
       if (!firstSectionFound) {
-        // El primer encabezado de sección [Verse 1], [Intro], etc. marca el inicio real
         if (/^\[.+\]$/.test(trimmed)) {
           firstSectionFound = true;
           cleanLines.push(trimmed);
         }
-        // Descartamos todo hasta encontrar la primera sección
         continue;
       }
       cleanLines.push(trimmed);
@@ -80,7 +76,6 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
 
     if (cleanLines.length === 0) return null;
 
-    // Parsear secciones desde las líneas limpias
     const sections: { title: string; lines: string[] }[] = [];
     let currentSection: { title: string; lines: string[] } = { title: 'Intro', lines: [] };
 
@@ -120,7 +115,6 @@ function createFillInTheBlanks(
     const processedLines: ProcessedLine[] = [];
 
     for (const line of section.lines) {
-      // Dividir respetando espacios y puntuación
       const tokens = line.split(/(\s+)/);
       const fillableIndices: number[] = [];
 
@@ -133,7 +127,6 @@ function createFillInTheBlanks(
       const targetCount = Math.max(1, Math.ceil(fillableIndices.length * difficulty));
       const indicesToBlank = new Set<number>();
 
-      // Selección aleatoria sin repetición
       const shuffled = [...fillableIndices].sort(() => Math.random() - 0.5);
       for (let i = 0; i < Math.min(targetCount, shuffled.length); i++) {
         indicesToBlank.add(shuffled[i]);
@@ -187,7 +180,7 @@ function getAllWordsFromSections(sections: { title: string; lines: string[] }[])
 function renderLineWithBlanks(parts: LinePart[]): string {
   return parts.map(p => {
     if (p.type === 'text') return p.content;
-    return chalk.bgBlackBright.yellow(` [${p.content.length}] `);  // Muestra el largo del blank
+    return chalk.bgBlackBright.yellow(` [${p.content.length}] `);
   }).join('');
 }
 
@@ -203,7 +196,6 @@ function renderLineWithAnswers(parts: LinePart[], answers: Map<number, string>):
 
 // ─── Lógica de juego por modo ─────────────────────────────────────────────────
 
-// FIX 2 + 3: Modo palabra por palabra — un prompt por blank, con hint y skip
 async function playWordByWord(
   parts: LinePart[],
   missedWords: Set<string>,
@@ -225,9 +217,7 @@ async function playWordByWord(
     const trimmed = input.trim();
 
     if (trimmed === '?') {
-      // Pista: primera letra
       console.log(chalk.yellow(`  💡 Pista: la palabra empieza con "${blank.content[0].toUpperCase()}"`));
-      // Segundo intento
       const { retry } = await inquirer.prompt([{
         type: 'input',
         name: 'retry',
@@ -245,7 +235,6 @@ async function playWordByWord(
         missedWords.add(blank.content);
       }
     } else if (trimmed === '.') {
-      // Skip
       console.log(chalk.dim(`  ⏭  Saltado — era: ${chalk.yellow(blank.content)}`));
       answers.set(blank.index, '[saltado]');
       missedWords.add(blank.content);
@@ -266,7 +255,6 @@ async function playWordByWord(
   return correct;
 }
 
-// Modo Multiple Choice - Elegir entre 3 opciones
 async function playMultipleChoice(
   parts: LinePart[],
   missedWords: Set<string>,
@@ -281,13 +269,11 @@ async function playMultipleChoice(
   for (const blank of blanks) {
     const expected = normalizeWord(blank.content);
     
-    // Generar distractores de la misma canción
     let distractors = allWords
       .filter(w => normalizeWord(w) !== expected)
       .sort(() => Math.random() - 0.5)
       .slice(0, 2);
     
-    // Si no hay suficientes palabras, usar comunes
     const common = ['love', 'time', 'life', 'heart', 'baby', 'yeah', 'night', 'world'];
     while (distractors.length < 2) {
       const extra = common[Math.floor(Math.random() * common.length)];
@@ -320,7 +306,6 @@ async function playMultipleChoice(
   return correct;
 }
 
-// FIX 2 + 3: Modo línea completa — todas las palabras en un input, con hint y skip
 async function playFullLine(
   parts: LinePart[],
   missedWords: Set<string>,
@@ -352,7 +337,6 @@ async function playFullLine(
   }
 
   if (trimmed === '?') {
-    // Pista: primera letra de cada blank
     const hints = blanks.map(b => `"${b.content[0].toUpperCase()}..." (${b.content.length} letras)`).join(', ');
     console.log(chalk.yellow(`  💡 Pistas: ${hints}`));
     const { retry } = await inquirer.prompt([{
@@ -418,23 +402,50 @@ export async function interactiveMusicSession(): Promise<void> {
   const choices = [
     ...hits.map((hit, i) => ({
       name: `${i + 1}. ${hit.result.artist_names} — ${hit.result.title}`,
-      value: hit.result.url,
+      value: { url: hit.result.url, title: hit.result.title, artist: hit.result.artist_names },
     })),
     new inquirer.Separator(),
     { name: 'Volver al menú', value: 'back' },
   ];
 
-  const { selectedSongUrl } = await inquirer.prompt([{
+  const { selectedSong } = await inquirer.prompt([{
     type: 'select',
-    name: 'selectedSongUrl',
+    name: 'selectedSong',
     message: 'Selecciona la canción:',
     choices,
     loop: false,
   }]);
 
-  if (selectedSongUrl === 'back') return;
+  if (selectedSong === 'back') return;
 
-  // FIX 4: Configuración de sesión antes de cargar la letra
+  const { url: selectedSongUrl, title, artist } = selectedSong;
+
+  console.log(chalk.blue('\nObteniendo letra...'));
+  const lyricSections = await getLyricsFromGeniusPage(selectedSongUrl);
+
+  if (!lyricSections || lyricSections.length === 0) {
+    console.log(chalk.red('No se pudo obtener la letra.\n'));
+    return;
+  }
+
+  // ANÁLISIS IA
+  const { viewAnalysis } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'viewAnalysis',
+    message: '¿Quieres ver un análisis de la canción (historia y expresiones) con IA antes de jugar?',
+    default: true,
+  }]);
+
+  if (viewAnalysis) {
+    console.log(chalk.blue('\nGenerando análisis con IA...'));
+    const allLyricsText = lyricSections.map(s => s.lines.join('\n')).join('\n');
+    const analysis = await getSongContext(title, artist, allLyricsText);
+    console.log(chalk.yellow('\n─── ANÁLISIS DE LA CANCIÓN ───'));
+    console.log(analysis);
+    console.log(chalk.yellow('─────────────────────────────\n'));
+    await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Presiona Enter para continuar...' }]);
+  }
+
   const { mode } = await inquirer.prompt([{
     type: 'select',
     name: 'mode',
@@ -457,15 +468,7 @@ export async function interactiveMusicSession(): Promise<void> {
     ],
   }]);
 
-  console.log(chalk.blue('\nObteniendo letra...'));
-  const lyricSections = await getLyricsFromGeniusPage(selectedSongUrl);
-
-  if (!lyricSections || lyricSections.length === 0) {
-    console.log(chalk.red('No se pudo obtener la letra.\n'));
-    return;
-  }
-
-  console.log(chalk.green('¡Letra encontrada! Prepárate.\n'));
+  console.log(chalk.green('\n¡Prepárate!'));
   const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
   console.log(`🎧 Escúchala aquí: ${chalk.underline.blue(youtubeLink)}\n`);
 
@@ -478,7 +481,6 @@ export async function interactiveMusicSession(): Promise<void> {
   let sectionsDone = 0;
   const totalSections = processedSections.length;
 
-  // FIX 5: Progreso visible por sección
   for (const section of processedSections) {
     sectionsDone++;
     const progress = chalk.dim(`[${sectionsDone}/${totalSections}]`);
@@ -487,7 +489,6 @@ export async function interactiveMusicSession(): Promise<void> {
     for (const lineData of section.lines) {
       const blanks = lineData.parts.filter(p => p.type === 'blank');
       if (blanks.length === 0) {
-        // Línea sin blanks: mostrar tal cual
         console.log(`\n  ${lineData.originalLine}`);
         continue;
       }
@@ -502,12 +503,10 @@ export async function interactiveMusicSession(): Promise<void> {
       }
       correctCount += lineCorrect;
 
-      // Mostrar la línea completa con resultado visual
       console.log(`  ${renderLineWithAnswers(lineData.parts, answers)}`);
     }
   }
 
-  // FIX 6: Resumen final mejorado
   const pct = totalBlanks > 0 ? Math.round((correctCount / totalBlanks) * 100) : 0;
   const bar = '█'.repeat(Math.round(pct / 5)) + '░'.repeat(20 - Math.round(pct / 5));
   console.log(chalk.bold(`\n──────── Sesión terminada ────────`));
