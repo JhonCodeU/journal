@@ -14,7 +14,7 @@
     "cli",
     "journal"
   ],
-  "author": "",
+  "author": "John Arcila Castano",
   "license": "ISC",
   "dependencies": {
     "@google/genai": "^1.50.1",
