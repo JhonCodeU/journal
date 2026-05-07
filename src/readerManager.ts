@@ -32,41 +32,45 @@ function saveProgress(progress: ReadingProgress) {
 // --- PDF READER SECTION ---
 
 export async function openPDFHub() {
-    const progress = getProgress();
-    
-    const choices = [
-        { name: '📖 Continuar Leyendo', value: 'continue' },
-        { name: '➕ Abrir Nuevo PDF', value: 'open' },
-        { name: '📚 Mi Biblioteca', value: 'library' },
-        new inquirer.Separator(),
-        { name: 'Volver', value: 'back' }
-    ];
+    try {
+        const progress = getProgress();
+        
+        const choices = [
+            { name: '📖 Continuar Leyendo', value: 'continue' },
+            { name: '➕ Abrir Nuevo PDF', value: 'open' },
+            { name: '📚 Mi Biblioteca', value: 'library' },
+            new inquirer.Separator(),
+            { name: 'Volver', value: 'back' }
+        ];
 
-    const { action } = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'action',
-            message: 'Biblioteca PDF:',
-            choices
-        }
-    ]);
-
-    switch (action) {
-        case 'continue':
-            if (!progress.currentBook) {
-                console.log(chalk.yellow('\nNo hay ningún libro abierto.\n'));
-                return openPDFHub();
+        const { action } = await inquirer.prompt([
+            {
+                type: 'select',
+                name: 'action',
+                message: 'Biblioteca PDF:',
+                choices
             }
-            await readBook(progress.currentBook);
-            break;
-        case 'open':
-            await openNewPDF();
-            break;
-        case 'library':
-            await showLibrary();
-            break;
-        case 'back':
-            return;
+        ]);
+
+        switch (action) {
+            case 'continue':
+                if (!progress.currentBook) {
+                    console.log(chalk.yellow('\nNo hay ningún libro abierto.\n'));
+                    return openPDFHub();
+                }
+                await readBook(progress.currentBook);
+                break;
+            case 'open':
+                await openNewPDF();
+                break;
+            case 'library':
+                await showLibrary();
+                break;
+            case 'back':
+                return;
+        }
+    } catch (error: any) {
+        console.error(chalk.red(`\nError en el Hub de PDF: ${error.message}`));
     }
 }
 
@@ -135,15 +139,28 @@ async function openNewPDF() {
 }
 
 async function readBook(title: string) {
-    const progress = getProgress();
-    const book = progress.books[title];
-    
-    const dataBuffer = fs.readFileSync(book.path);
-    const parser = new PDFParse({ data: dataBuffer });
-    const data = await parser.getText();
-    
-    const pages = data.pages;
-    await displayReader(title, pages, book.lastPageRead - 1, true);
+    try {
+        const progress = getProgress();
+        const book = progress.books[title];
+        
+        if (!fs.existsSync(book.path)) {
+            console.log(chalk.red(`\nError: No se encontró el archivo en ${book.path}`));
+            return;
+        }
+
+        console.log(chalk.blue(`\nCargando "${title}"...`));
+        const dataBuffer = fs.readFileSync(book.path);
+        
+        console.log(chalk.blue('Analizando contenido del PDF...'));
+        const parser = new (PDFParse as any)({ data: dataBuffer });
+        const data = await parser.getText();
+        
+        const pages = data.pages;
+        console.log(chalk.green('¡Listo!\n'));
+        await displayReader(title, pages, book.lastPageRead - 1, true);
+    } catch (error: any) {
+        console.error(chalk.red(`\nError al abrir el libro: ${error.message}`));
+    }
 }
 
 async function displayReader(title: string, pages: any[], startIndex: number = 0, isBook: boolean = false) {
@@ -234,7 +251,7 @@ async function showLibrary() {
 
     const { selectedTitle } = await inquirer.prompt([
         {
-            type: 'list',
+            type: 'select',
             name: 'selectedTitle',
             message: 'Selecciona un libro para leer:',
             choices: [...bookTitles, 'Volver']
