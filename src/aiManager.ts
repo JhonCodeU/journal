@@ -61,6 +61,21 @@ export async function getSongContext(title: string, artist: string, lyricsSample
     return await callOllama(prompt, "You are a music expert and English teacher.");
 }
 
+export async function getBilingualLyrics(lyrics: string): Promise<string> {
+    const prompt = `Translate the following song lyrics into Spanish. 
+    IMPORTANT: You must translate EVERY single line. Do not skip, omit, or summarize any part of the song.
+    Return the result in an interleaved format: 
+    - The original English line.
+    - The Spanish translation on the next line, prefixed with 'ES: '.
+    
+    Maintain all section headers like [Verse 1], [Chorus], etc., and do not translate them.
+    
+    Lyrics:
+    ${lyrics}`;
+    
+    return await callOllama(prompt, "You are a professional translator and music expert. Provide ONLY the full interleaved lyrics. Do not add any introductory or concluding text.");
+}
+
 // Emulación del sistema de chat de Gemini para Ollama
 export async function createChatSession() {
     let history: { role: string, content: string }[] = [

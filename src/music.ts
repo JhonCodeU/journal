@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { saveWord } from './vocabularyManager.js';
-import { getSongContext } from './aiManager.js';
+import { getSongContext, getBilingualLyrics } from './aiManager.js';
 
 const GENIUS_API_BASE_URL = 'https://api.genius.com';
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
@@ -59,20 +59,7 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     });
 
     const rawLines = fullText.split('\n');
-    let firstSectionFound = false;
-    const cleanLines: string[] = [];
-
-    for (const line of rawLines) {
-      const trimmed = line.trim();
-      if (!firstSectionFound) {
-        if (/^\[.+\]$/.test(trimmed)) {
-          firstSectionFound = true;
-          cleanLines.push(trimmed);
-        }
-        continue;
-      }
-      cleanLines.push(trimmed);
-    }
+    const cleanLines = rawLines.map(l => l.trim()).filter(l => l !== '');
 
     if (cleanLines.length === 0) return null;
 
@@ -80,7 +67,6 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     let currentSection: { title: string; lines: string[] } = { title: 'Intro', lines: [] };
 
     for (const line of cleanLines) {
-      if (line === '') continue;
       const match = line.match(/^\[(.+)\]$/);
       if (match) {
         if (currentSection.lines.length > 0) sections.push(currentSection);
@@ -428,21 +414,57 @@ export async function interactiveMusicSession(): Promise<void> {
     return;
   }
 
-  // ANÁLISIS IA
-  const { viewAnalysis } = await inquirer.prompt([{
-    type: 'confirm',
-    name: 'viewAnalysis',
-    message: '¿Quieres ver un análisis de la canción (historia y expresiones) con IA antes de jugar?',
-    default: true,
+  // PRE-SESIÓN: Análisis y Letras Bilingües
+  const { preSessionOption } = await inquirer.prompt([{
+    type: 'select',
+    name: 'preSessionOption',
+    message: '¿Quieres prepararte antes de jugar?',
+    choices: [
+      { name: 'Ver análisis (historia y expresiones)', value: 'analysis' },
+      { name: 'Ver letra bilingüe (English/Spanish)', value: 'bilingual' },
+      { name: 'Ambos', value: 'both' },
+      { name: 'Nada, empezar a jugar', value: 'none' },
+    ],
   }]);
 
-  if (viewAnalysis) {
+  if (preSessionOption === 'analysis' || preSessionOption === 'both') {
     console.log(chalk.blue('\nGenerando análisis con IA...'));
     const allLyricsText = lyricSections.map(s => s.lines.join('\n')).join('\n');
     const analysis = await getSongContext(title, artist, allLyricsText);
     console.log(chalk.yellow('\n─── ANÁLISIS DE LA CANCIÓN ───'));
     console.log(analysis);
     console.log(chalk.yellow('─────────────────────────────\n'));
+  }
+
+  if (preSessionOption === 'bilingual' || preSessionOption === 'both') {
+    console.log(chalk.blue('\n📖 Letra original completa (English):'));
+    lyricSections.forEach(s => {
+      console.log(chalk.magenta(`\n[${s.title}]`));
+      s.lines.forEach(l => console.log(`  ${l}`));
+    });
+
+    console.log(chalk.yellow('\n✨ Generando versión bilingüe para estudio (sección por sección)...'));
+    console.log(chalk.cyan('\n─── ESTUDIO BILINGÜE ───'));
+    
+    for (const section of lyricSections) {
+      console.log(chalk.magenta.bold(`\n[${section.title}]`));
+      const sectionText = section.lines.join('\n');
+      
+      const bilingual = await getBilingualLyrics(sectionText);
+      
+      const lines = bilingual.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('ES: ')) {
+          console.log(chalk.italic.cyan(`  ${line}`));
+        } else if (line.trim() && !line.startsWith('[')) {
+          console.log(chalk.white(`  ${line}`));
+        }
+      }
+    }
+    console.log(chalk.cyan('\n────────────────────────\n'));
+  }
+
+  if (preSessionOption !== 'none') {
     await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Presiona Enter para continuar...' }]);
   }
 
