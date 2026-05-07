@@ -4,7 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
-import { getStylisticFeedback, simplifyToA2 } from './aiManager.js';
+import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis } from './aiManager.js';
 import { saveWord } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
@@ -184,9 +184,11 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                 choices: [
                     { name: '➡️  Siguiente Página', value: 'next', disabled: currentIndex >= pages.length - 1 ? '(Última página)' : false },
                     { name: '⬅️  Página Anterior', value: 'prev', disabled: currentIndex === 0 ? '(Primera página)' : false },
+                    { name: '🌐  Ver Traducción Bilingüe (IA)', value: 'bilingual' },
+                    { name: '🧠  Analizar Vocabulario y Expresiones (IA)', value: 'analyze' },
                     { name: '✨  Simplificar a nivel A2 (IA)', value: 'simplify' },
                     { name: '🤖  IA: Explicar esta parte', value: 'explain' },
-                    { name: '💾  Guardar Vocabulario', value: 'vocab' },
+                    { name: '💾  Guardar Vocabulario Manual', value: 'vocab' },
                     { name: '🚪  Cerrar', value: 'exit' }
                 ]
             }
@@ -209,6 +211,29 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     saveProgress(progress);
                 }
             }
+        } else if (action === 'bilingual') {
+            console.log(chalk.blue('\nTraduciendo página con IA...'));
+            const bilingual = await getBilingualPage(pages[currentIndex].text);
+            console.clear();
+            console.log(chalk.blue.bold(`\n📖 MODO BILINGÜE: ${title} (Pag. ${currentIndex + 1})`));
+            console.log(chalk.cyan('='.repeat(50)));
+            const lines = bilingual.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('ES: ')) {
+                    console.log(chalk.italic.cyan(`  ${line}`));
+                } else if (line.trim()) {
+                    console.log(chalk.white(`  ${line}`));
+                }
+            }
+            console.log(chalk.cyan('='.repeat(50)));
+            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver...' }]);
+        } else if (action === 'analyze') {
+            console.log(chalk.blue('\nExtrayendo vocabulario y expresiones con IA...'));
+            const analysis = await getPageAnalysis(pages[currentIndex].text);
+            console.log(chalk.green.bold('\n--- ANÁLISIS DE LA PÁGINA ---'));
+            console.log(analysis);
+            console.log(chalk.green.bold('----------------------------'));
+            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver...' }]);
         } else if (action === 'simplify') {
             console.log(chalk.blue('\nSimplificando texto para nivel A2...'));
             const simplified = await simplifyToA2(pages[currentIndex].text);

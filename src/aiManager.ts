@@ -92,7 +92,6 @@ export async function getPodcastVocab(description: string): Promise<{word: strin
     
     const response = await callOllama(prompt, "You are a language teacher. Return ONLY JSON.");
     try {
-        // Basic cleanup in case Ollama adds markdown or extra text
         const jsonStart = response.indexOf('[');
         const jsonEnd = response.lastIndexOf(']') + 1;
         const jsonStr = response.substring(jsonStart, jsonEnd);
@@ -101,6 +100,29 @@ export async function getPodcastVocab(description: string): Promise<{word: strin
         console.error("Error parsing AI vocab response:", e);
         return [];
     }
+}
+
+export async function getBilingualPage(text: string): Promise<string> {
+    const prompt = `Translate the following book page into Spanish. 
+    IMPORTANT: You must translate every paragraph. 
+    Return the result in an interleaved format: 
+    - Original English paragraph.
+    - Spanish translation on the next line (prefixed with 'ES: ').
+    
+    Text:
+    ${text}`;
+    
+    return await callOllama(prompt, "You are a professional literary translator. Provide ONLY the interleaved text.");
+}
+
+export async function getPageAnalysis(text: string): Promise<string> {
+    const prompt = `Analyze this text from a book: "${text.substring(0, 1000)}..."
+    Provide:
+    1. A list of 5 key vocabulary words with their meanings in Spanish and a simple example.
+    2. Identify 2-3 idiomatic expressions or phrasal verbs found in the text and explain them in Spanish.
+    3. A very brief tip on a grammar point found in this specific text.`;
+    
+    return await callOllama(prompt, "You are an expert English teacher for Spanish speakers.");
 }
 
 // Emulación del sistema de chat de Gemini para Ollama
