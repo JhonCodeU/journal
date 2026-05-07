@@ -76,6 +76,33 @@ export async function getBilingualLyrics(lyrics: string): Promise<string> {
     return await callOllama(prompt, "You are a professional translator and music expert. Provide ONLY the full interleaved lyrics. Do not add any introductory or concluding text.");
 }
 
+export async function getPodcastSummary(title: string, description: string): Promise<string> {
+    const prompt = `Podcast Episode: "${title}". 
+    Description: "${description}"
+    Provide a concise 3-4 sentence summary of this episode in Spanish, focusing on what the listener will learn.`;
+    
+    return await callOllama(prompt, "You are a helpful educational assistant.");
+}
+
+export async function getPodcastVocab(description: string): Promise<{word: string, translation: string}[]> {
+    const prompt = `From this podcast description: "${description}", extract 5 interesting or useful English words or idioms for an English learner. 
+    For each one, provide its Spanish translation.
+    Return ONLY a JSON array of objects with "word" and "translation" keys.
+    Example: [{"word": "resilience", "translation": "resiliencia"}]`;
+    
+    const response = await callOllama(prompt, "You are a language teacher. Return ONLY JSON.");
+    try {
+        // Basic cleanup in case Ollama adds markdown or extra text
+        const jsonStart = response.indexOf('[');
+        const jsonEnd = response.lastIndexOf(']') + 1;
+        const jsonStr = response.substring(jsonStart, jsonEnd);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error("Error parsing AI vocab response:", e);
+        return [];
+    }
+}
+
 // Emulación del sistema de chat de Gemini para Ollama
 export async function createChatSession() {
     let history: { role: string, content: string }[] = [
