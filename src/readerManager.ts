@@ -8,8 +8,101 @@ import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis }
 import { saveWord } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
+import { spawn, ChildProcess } from 'child_process';
 
 const PROGRESS_FILE = './reading_progress.json';
+let currentAudioProcess: ChildProcess | null = null;
+
+function stopAudio() {
+    if (currentAudioProcess) {
+        currentAudioProcess.kill();
+        currentAudioProcess = null;
+    }
+}
+
+function speak(text: string, rate: string = '-15%') {
+    stopAudio();
+
+    const cleanText = text
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 1500);
+
+    const timestamp = Date.now();
+    const tempRaw = `/tmp/tts_raw_${timestamp}.mp3`;
+    const tempNorm = `/tmp/tts_norm_${timestamp}.mp3`;
+    const textFile = `/tmp/tts_text_${timestamp}.txt`;
+    const edgeTtsPath = '/home/dat-pt74/.local/bin/edge-tts';
+
+    fs.writeFileSync(textFile, cleanText, 'utf8');
+    console.log(chalk.yellow('  ⏳ Generando audio...'));
+
+    // Paso 1: edge-tts genera el mp3
+    const tts = spawn(edgeTtsPath, [
+        '--voice', 'en-US-JennyNeural',
+        `--rate=${rate}`,
+        '--file', textFile,
+        '--write-media', tempRaw
+    ]);
+
+    let ttsError = '';
+    tts.stderr.on('data', (data) => {
+        ttsError += data.toString();
+    });
+
+    currentAudioProcess = tts;
+
+    tts.on('close', (code) => {
+        if (code !== 0) {
+            console.error(chalk.red('\n❌ Error generando audio TTS.'));
+            if (ttsError) {
+                console.error(chalk.red(`Detalles: ${ttsError}`));
+            }
+            fs.rmSync(textFile, { force: true });
+            currentAudioProcess = null;
+            return;
+        }
+
+        // Paso 2: ffmpeg normaliza el volumen
+        const ffmpeg = spawn('ffmpeg', [
+            '-i', tempRaw,
+            '-af', 'loudnorm=I=-9:TP=-0.5:LRA=11,volume=1.5',
+            '-ar', '44100',
+            tempNorm,
+            '-y', '-loglevel', 'quiet'
+        ]);
+
+        currentAudioProcess = ffmpeg;
+
+        ffmpeg.on('close', (code) => {
+            fs.rmSync(tempRaw, { force: true });
+            fs.rmSync(textFile, { force: true });
+
+            if (code !== 0) {
+                console.error(chalk.red('\n❌ Error normalizando audio.'));
+                currentAudioProcess = null;
+                return;
+            }
+
+            // Paso 3: VLC reproduce
+            const vlc = spawn('cvlc', [
+                '-I', 'dummy',
+                '--no-video',
+                '--volume', '512',
+                '--play-and-exit',
+                tempNorm
+            ], { stdio: 'ignore' });
+
+            currentAudioProcess = vlc;
+
+            vlc.on('close', () => {
+                fs.rmSync(tempNorm, { force: true });
+                currentAudioProcess = null;
+            });
+        });
+    });
+}
 
 const INITIAL_PROGRESS: ReadingProgress = {
     currentBook: null,
@@ -184,6 +277,10 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                 choices: [
                     { name: '➡️  Siguiente Página', value: 'next', disabled: currentIndex >= pages.length - 1 ? '(Última página)' : false },
                     { name: '⬅️  Página Anterior', value: 'prev', disabled: currentIndex === 0 ? '(Primera página)' : false },
+                    { name: '🔊  Escuchar (Normal)', value: 'speak' },
+                    { name: '🐢  Escuchar Lento (para estudiar)', value: 'speak_slow' },
+                    { name: '🐇  Escuchar Rápido (práctica avanzada)', value: 'speak_fast' },
+                    { name: '🔇  Detener Narración', value: 'stop' },
                     { name: '🌐  Ver Traducción Bilingüe (IA)', value: 'bilingual' },
                     { name: '🧠  Analizar Vocabulario y Expresiones (IA)', value: 'analyze' },
                     { name: '✨  Simplificar a nivel A2 (IA)', value: 'simplify' },
@@ -211,6 +308,19 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     saveProgress(progress);
                 }
             }
+        // Handlers — reemplaza el bloque speak duplicado por esto:
+        } else if (action === 'speak') {
+            console.log(chalk.blue('\nNarrando a velocidad normal...'));
+            speak(pages[currentIndex].text, '-15%');
+        } else if (action === 'speak_slow') {
+            console.log(chalk.blue('\nNarrando lento para estudiar...'));
+            speak(pages[currentIndex].text, '-30%');
+        } else if (action === 'speak_fast') {
+            console.log(chalk.blue('\nNarrando rápido...'));
+            speak(pages[currentIndex].text, '+10%');
+        } else if (action === 'stop') {
+            console.log(chalk.yellow('\nNarración detenida.'));
+            stopAudio();
         } else if (action === 'bilingual') {
             console.log(chalk.blue('\nTraduciendo página con IA...'));
             const bilingual = await getBilingualPage(pages[currentIndex].text);
@@ -253,15 +363,41 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
         } else if (action === 'vocab') {
             const { word } = await inquirer.prompt([{ type: 'input', name: 'word', message: 'Palabra que quieres guardar:' }]);
             if (word) {
-                const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
-                if (translation) {
-                    await saveWord({ word, translation });
-                    addXP(10);
+                const { actionVocab } = await inquirer.prompt([{
+                    type: 'select',
+                    name: 'actionVocab',
+                    message: `¿Qué quieres hacer con "${word}"?`,
+                    choices: [
+                        { name: '🔊 Escuchar pronunciación', value: 'hear' },
+                        { name: '💾 Guardar con traducción', value: 'save' },
+                        { name: '❌ Cancelar', value: 'cancel' }
+                    ]
+                }]);
+
+                if (actionVocab === 'hear') {
+                    speak(word);
+                    // Preguntar de nuevo si quiere guardar después de escuchar
+                    const { confirmSave } = await inquirer.prompt([{ type: 'confirm', name: 'confirmSave', message: '¿Quieres guardarla ahora?' }]);
+                    if (confirmSave) {
+                        const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
+                        if (translation) {
+                            await saveWord({ word, translation });
+                            addXP(10);
+                        }
+                    }
+                } else if (actionVocab === 'save') {
+                    const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
+                    if (translation) {
+                        await saveWord({ word, translation });
+                        addXP(10);
+                    }
                 }
             }
         } else if (action === 'exit') {
+            stopAudio();
             break;
         }
+
     }
 }
 
