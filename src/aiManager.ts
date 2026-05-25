@@ -63,30 +63,34 @@ export async function getSongContext(title: string, artist: string, lyricsSample
 
 export async function getBilingualLyrics(lyrics: string): Promise<string> {
     const prompt = `Translate the following song lyrics into Spanish. 
-    IMPORTANT: You must translate EVERY single line. Do not skip, omit, or summarize any part of the song.
+    IMPORTANT: 
+    - Translate EVERY single line. Do not skip, omit, or summarize any part of the song.
+    - Use natural, idiomatic Spanish. Song lyrics are often informal; the translation should sound like something a person would actually say or sing in Spanish.
+    - Avoid overly literal or formal translations. For example, "miss me" should be "me extrañas" (not "nostalgia de mí"), and "business" should be "asuntos" or "cosas" (not "empresa") when used in a personal context.
+    - Capture the tone and emotion of the song.
+    - Maintain all section headers like [Verse 1], [Chorus], etc., and do not translate them.
+    
     Return the result in an interleaved format: 
     - The original English line.
     - The Spanish translation on the next line, prefixed with 'ES: '.
     
-    Maintain all section headers like [Verse 1], [Chorus], etc., and do not translate them.
-    
     Lyrics:
     ${lyrics}`;
     
-    return await callOllama(prompt, "You are a professional translator and music expert. Provide ONLY the full interleaved lyrics. Do not add any introductory or concluding text.");
+    return await callOllama(prompt, "You are a professional translator and music expert with a deep understanding of English idioms, slang, and cultural context. Your goal is to provide a natural, idiomatic Spanish translation that captures the original meaning and tone of the lyrics. Provide ONLY the full interleaved lyrics. Do not add any introductory or concluding text.");
 }
 
 export async function getPodcastSummary(title: string, description: string): Promise<string> {
     const prompt = `Podcast Episode: "${title}". 
     Description: "${description}"
-    Provide a concise 3-4 sentence summary of this episode in Spanish, focusing on what the listener will learn.`;
+    Provide a concise 3-4 sentence summary of this episode in Spanish, focusing on what the listener will learn. Ensure the summary is engaging and natural.`;
     
     return await callOllama(prompt, "You are a helpful educational assistant.");
 }
 
 export async function getPodcastVocab(description: string): Promise<{word: string, translation: string}[]> {
     const prompt = `From this podcast description: "${description}", extract 5 interesting or useful English words or idioms for an English learner. 
-    For each one, provide its Spanish translation.
+    For each one, provide its natural Spanish translation based on the context.
     Return ONLY a JSON array of objects with "word" and "translation" keys.
     Example: [{"word": "resilience", "translation": "resiliencia"}]`;
     
@@ -104,7 +108,11 @@ export async function getPodcastVocab(description: string): Promise<{word: strin
 
 export async function getBilingualPage(text: string): Promise<string> {
     const prompt = `Translate the following book page into Spanish. 
-    IMPORTANT: You must translate every paragraph. 
+    IMPORTANT: 
+    - Translate every paragraph. 
+    - Use a natural, literary style that matches the tone of the original text.
+    - Ensure idiomatic expressions are translated meaningfully rather than literally.
+    
     Return the result in an interleaved format: 
     - Original English paragraph.
     - Spanish translation on the next line (prefixed with 'ES: ').
@@ -112,7 +120,7 @@ export async function getBilingualPage(text: string): Promise<string> {
     Text:
     ${text}`;
     
-    return await callOllama(prompt, "You are a professional literary translator. Provide ONLY the interleaved text.");
+    return await callOllama(prompt, "You are a professional literary translator. Your goal is to provide a natural and flowing Spanish translation that captures the author's voice. Provide ONLY the interleaved text.");
 }
 
 export async function getPageAnalysis(text: string): Promise<string> {
