@@ -9,6 +9,7 @@ import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
 import { openPDFHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
+import { interactiveAudioLibrarySession } from './audioLibrary.js';
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -70,7 +71,8 @@ async function mainMenu(): Promise<void> {
       choices: [
         { name: '📖 PDF Reader (Books)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
-        { name: '🎙️ Podcasts (Spotify)', value: 'podcast' },
+        { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
+        { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
@@ -92,6 +94,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'web':
         await openWebReader();
+        break;
+    case 'audio-lib':
+        await interactiveAudioLibrarySession();
         break;
     case 'podcast':
         await interactivePodcastSession();
