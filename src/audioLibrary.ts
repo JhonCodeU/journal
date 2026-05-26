@@ -5,33 +5,40 @@ import chalk from 'chalk';
 import { saveEntry } from './journal.js';
 import { saveWord } from './vocabularyManager.js';
 import { getPodcastSummary, getPodcastVocab } from './aiManager.js';
+import { fetchArticle } from './webReader.js';
+import { commonWords } from './vocabulary.js';
 
 interface AudioSource {
   name: string;
   url: string;
   description: string;
+  type: 'bbc' | 'voa' | 'generic';
 }
 
 const SOURCES: AudioSource[] = [
   {
     name: 'BBC 6 Minute English',
     url: 'https://podcasts.files.bbci.co.uk/p02pc9tn.rss',
-    description: 'Bite-sized episodes about everyday topics. Great for intermediate learners.'
+    description: 'Bite-sized episodes about everyday topics. Great for intermediate learners.',
+    type: 'bbc'
   },
   {
     name: 'VOA Learning English (General)',
     url: 'https://learningenglish.voanews.com/podcast/?count=20&zoneId=3521',
-    description: 'News and features at a slower pace with simple vocabulary.'
+    description: 'News and features at a slower pace with simple vocabulary.',
+    type: 'voa'
   },
   {
     name: 'VOA Words and Their Stories',
     url: 'https://learningenglish.voanews.com/podcast/?count=20&zoneId=1579',
-    description: 'Explains the origins and usage of common English idioms and expressions.'
+    description: 'Explains the origins and usage of common English idioms and expressions.',
+    type: 'voa'
   },
   {
       name: 'British Council - LearnEnglish',
       url: 'https://learnenglish.britishcouncil.org/general-english/podcasts/feed',
-      description: 'Episodes about everyday life, perfect for improving listening skills.'
+      description: 'Episodes about everyday life, perfect for improving listening skills.',
+      type: 'generic'
   }
 ];
 
@@ -40,26 +47,32 @@ interface Episode {
   description: string;
   audioUrl: string;
   link: string;
+  transcriptUrl: string;
   pubDate: string;
 }
 
-async function fetchFeed(url: string): Promise<Episode[]> {
+async function fetchFeed(source: AudioSource): Promise<Episode[]> {
   try {
-    const { data } = await axios.get(url);
+    const { data } = await axios.get(source.url);
     const $ = cheerio.load(data, { xmlMode: true });
     const episodes: Episode[] = [];
 
     $('item').each((i, el) => {
       const title = $(el).find('title').text();
-      const description = $(el).find('description').text()
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
-        .trim();
+      const rawDescription = $(el).find('description').text();
+      const description = rawDescription.replace(/<[^>]*>/g, '').trim();
       const audioUrl = $(el).find('enclosure').attr('url') || '';
       const link = $(el).find('link').text();
       const pubDate = $(el).find('pubDate').text();
 
+      let transcriptUrl = link;
+      if (source.type === 'bbc') {
+          const match = rawDescription.match(/https:\/\/www\.bbc\.co\.uk\/learningenglish\/[^\s<]*/);
+          if (match) transcriptUrl = match[0];
+      }
+
       if (title && audioUrl) {
-        episodes.push({ title, description, audioUrl, link, pubDate });
+        episodes.push({ title, description, audioUrl, link, transcriptUrl, pubDate });
       }
     });
 
@@ -72,7 +85,6 @@ async function fetchFeed(url: string): Promise<Episode[]> {
 
 export async function interactiveAudioLibrarySession(): Promise<void> {
   console.log(chalk.cyan.bold('\n📚 Natural Audio Stories & News\n'));
-  console.log(chalk.gray('Fast, natural audio from top educational sources. No login required.\n'));
 
   const { source } = await inquirer.prompt([{
     type: 'select',
@@ -87,7 +99,7 @@ export async function interactiveAudioLibrarySession(): Promise<void> {
   if (source === 'back') return;
 
   console.log(chalk.blue(`\nFetching latest episodes from ${source.name}...`));
-  const episodes = await fetchFeed(source.url);
+  const episodes = await fetchFeed(source);
 
   if (episodes.length === 0) {
     console.log(chalk.red('No episodes found. Try another source.\n'));
@@ -123,7 +135,8 @@ async function studyEpisode(episode: Episode, sourceName: string) {
     name: 'action',
     message: 'What would you like to do?',
     choices: [
-      { name: '🎧 Listen & Study (Open in browser)', value: 'listen' },
+      { name: '🎧 Listen & Study (Open Audio)', value: 'listen' },
+      { name: '📖 Read Full Transcript (Console)', value: 'transcript' },
       { name: '📝 Add to Journal (Log listening)', value: 'journal' },
       { name: '📚 AI Vocabulary Extraction', value: 'vocab-ai' },
       { name: '✨ AI Summary (Spanish)', value: 'summary' },
@@ -134,7 +147,9 @@ async function studyEpisode(episode: Episode, sourceName: string) {
   switch (action) {
     case 'listen':
       console.log(chalk.green(`\nOpening audio link: ${episode.audioUrl}`));
-      console.log(chalk.gray('(You can listen while following the description here or on the site)'));
+      break;
+    case 'transcript':
+      await showTranscriptFlow(episode);
       break;
     case 'journal':
       const entry = `Listened to ${sourceName}: ${episode.title}.\n${episode.description}`;
@@ -161,9 +176,71 @@ async function studyEpisode(episode: Episode, sourceName: string) {
   }
 }
 
-async function extractVocabularyAIFlow(description: string) {
+async function showTranscriptFlow(episode: Episode) {
+    console.log(chalk.blue(`\nFetching transcript from ${episode.transcriptUrl}...`));
+    const article = await fetchArticle(episode.transcriptUrl);
+
+    if (!article) {
+        console.log(chalk.red('Could not fetch transcript. You might need to visit the website.'));
+        console.log(chalk.cyan('Link: ') + chalk.underline.blue(episode.transcriptUrl));
+        return;
+    }
+
+    console.log(chalk.magenta.bold(`\n--- TRANSCRIPT: ${article.title} ---`));
+    
+    const words = article.content.match(/\b[a-zA-Z]+\b/g) || [];
+    const difficultWords = new Set<string>();
+    words.forEach(word => {
+        const cleanedWord = word.toLowerCase();
+        if (!commonWords.has(cleanedWord)) {
+            difficultWords.add(word);
+        }
+    });
+
+    let highlightedText = article.content;
+    difficultWords.forEach(word => {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        highlightedText = highlightedText.replace(regex, chalk.yellow(word));
+    });
+
+    console.log(highlightedText);
+    console.log(chalk.magenta.bold('\n--- END OF TRANSCRIPT ---\n'));
+
+    const { vocabAction } = await inquirer.prompt([{
+        type: 'select',
+        name: 'vocabAction',
+        message: 'Vocabulary from transcript:',
+        choices: [
+            { name: '📚 Save difficult words (Manual)', value: 'manual' },
+            { name: '✨ AI extract from transcript', value: 'ai' },
+            { name: '🔙 Back', value: 'back' }
+        ]
+    }]);
+
+    if (vocabAction === 'manual') {
+        const { selectedWords } = await inquirer.prompt([{
+            type: 'checkbox',
+            name: 'selectedWords',
+            message: 'Select words to save:',
+            choices: Array.from(difficultWords).slice(0, 50)
+        }]);
+
+        for (const word of selectedWords) {
+            const { translation } = await inquirer.prompt([{
+                type: 'input',
+                name: 'translation',
+                message: `Translation for "${chalk.yellow(word)}":`
+            }]);
+            if (translation) await saveWord({ word, translation });
+        }
+    } else if (vocabAction === 'ai') {
+        await extractVocabularyAIFlow(article.content.substring(0, 5000));
+    }
+}
+
+async function extractVocabularyAIFlow(text: string) {
   console.log(chalk.blue('\nLa IA está seleccionando las mejores palabras para ti...'));
-  const aiWords = await getPodcastVocab(description);
+  const aiWords = await getPodcastVocab(text.substring(0, 3000));
 
   if (aiWords.length === 0) {
     console.log(chalk.red('No se pudieron extraer palabras con IA.\n'));
