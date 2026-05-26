@@ -17,6 +17,24 @@ interface AudioSource {
 
 const SOURCES: AudioSource[] = [
   {
+    name: 'Maestra Miel: Slow English Podcast',
+    url: 'https://feeds.acast.com/public/shows/maestra-miel-slow-english-podcast',
+    description: 'Slow, clear English for A1-B1 learners. Perfect for building your ear.',
+    type: 'generic'
+  },
+  {
+    name: 'Inglés desde cero',
+    url: 'https://inglesdesdecero.ca/feed/podcast/',
+    description: 'Aprende inglés desde cero con explicaciones en español y nativos.',
+    type: 'generic'
+  },
+  {
+    name: 'English Learning for Curious Minds',
+    url: 'https://feeds.transistor.fm/leonardo-english-english-language-learning-for-curious-minds',
+    description: 'Intermediate-Advanced stories about the world.',
+    type: 'generic'
+  },
+  {
     name: 'BBC 6 Minute English',
     url: 'https://podcasts.files.bbci.co.uk/p02pc9tn.rss',
     description: 'Bite-sized episodes about everyday topics. Great for intermediate learners.',
@@ -33,12 +51,6 @@ const SOURCES: AudioSource[] = [
     url: 'https://learningenglish.voanews.com/podcast/?count=20&zoneId=1579',
     description: 'Explains the origins and usage of common English idioms and expressions.',
     type: 'voa'
-  },
-  {
-      name: 'British Council - LearnEnglish',
-      url: 'https://learnenglish.britishcouncil.org/general-english/podcasts/feed',
-      description: 'Episodes about everyday life, perfect for improving listening skills.',
-      type: 'generic'
   }
 ];
 
@@ -51,22 +63,22 @@ interface Episode {
   pubDate: string;
 }
 
-async function fetchFeed(source: AudioSource): Promise<Episode[]> {
+async function fetchFeed(url: string, sourceType: string = 'generic'): Promise<Episode[]> {
   try {
-    const { data } = await axios.get(source.url);
+    const { data } = await axios.get(url);
     const $ = cheerio.load(data, { xmlMode: true });
     const episodes: Episode[] = [];
 
     $('item').each((i, el) => {
       const title = $(el).find('title').text();
-      const rawDescription = $(el).find('description').text();
+      const rawDescription = $(el).find('description').text() || $(el).find('itunes\\:summary').text();
       const description = rawDescription.replace(/<[^>]*>/g, '').trim();
       const audioUrl = $(el).find('enclosure').attr('url') || '';
       const link = $(el).find('link').text();
       const pubDate = $(el).find('pubDate').text();
 
       let transcriptUrl = link;
-      if (source.type === 'bbc') {
+      if (sourceType === 'bbc') {
           const match = rawDescription.match(/https:\/\/www\.bbc\.co\.uk\/learningenglish\/[^\s<]*/);
           if (match) transcriptUrl = match[0];
       }
@@ -83,14 +95,38 @@ async function fetchFeed(source: AudioSource): Promise<Episode[]> {
   }
 }
 
+async function searchItunesPodcasts(query: string): Promise<AudioSource[]> {
+    try {
+        const response = await axios.get('https://itunes.apple.com/search', {
+            params: {
+                term: query,
+                media: 'podcast',
+                limit: 5
+            }
+        });
+
+        return response.data.results.map((res: any) => ({
+            name: res.collectionName,
+            url: res.feedUrl,
+            description: `Artist: ${res.artistName} | Genre: ${res.primaryGenreName}`,
+            type: 'generic'
+        }));
+    } catch (error) {
+        console.error(chalk.red('Search failed:'), error);
+        return [];
+    }
+}
+
 export async function interactiveAudioLibrarySession(): Promise<void> {
-  console.log(chalk.cyan.bold('\n📚 Natural Audio Stories & News\n'));
+  console.log(chalk.cyan.bold('\n📚 Natural Audio Stories & News (High Speed)\n'));
 
   const { source } = await inquirer.prompt([{
     type: 'select',
     name: 'source',
-    message: 'Select a source:',
+    message: 'Select a podcast or search:',
     choices: [
+      { name: chalk.magenta.bold('🔍 Search for a new podcast...'), value: 'search' },
+      new inquirer.Separator(),
       ...SOURCES.map(s => ({ name: `${s.name} - ${chalk.gray(s.description)}`, value: s })),
       { name: 'Back to main menu', value: 'back' }
     ]
@@ -98,11 +134,44 @@ export async function interactiveAudioLibrarySession(): Promise<void> {
 
   if (source === 'back') return;
 
-  console.log(chalk.blue(`\nFetching latest episodes from ${source.name}...`));
-  const episodes = await fetchFeed(source);
+  let finalSource: AudioSource;
+
+  if (source === 'search') {
+      const { query } = await inquirer.prompt([{
+          type: 'input',
+          name: 'query',
+          message: 'Podcast name or topic:',
+      }]);
+      
+      console.log(chalk.blue('\nSearching...'));
+      const results = await searchItunesPodcasts(query);
+      
+      if (results.length === 0) {
+          console.log(chalk.red('No podcasts found.'));
+          return interactiveAudioLibrarySession();
+      }
+
+      const { selected } = await inquirer.prompt([{
+          type: 'select',
+          name: 'selected',
+          message: 'Select from results:',
+          choices: [
+              ...results.map(r => ({ name: `${r.name} (${r.description})`, value: r })),
+              { name: 'Back', value: 'back' }
+          ]
+      }]);
+
+      if (selected === 'back') return interactiveAudioLibrarySession();
+      finalSource = selected;
+  } else {
+      finalSource = source;
+  }
+
+  console.log(chalk.blue(`\nFetching latest episodes from ${finalSource.name}...`));
+  const episodes = await fetchFeed(finalSource.url, finalSource.type);
 
   if (episodes.length === 0) {
-    console.log(chalk.red('No episodes found. Try another source.\n'));
+    console.log(chalk.red('No episodes found for this source.\n'));
     return interactiveAudioLibrarySession();
   }
 
@@ -118,7 +187,7 @@ export async function interactiveAudioLibrarySession(): Promise<void> {
 
   if (selectedEpisode === 'back') return interactiveAudioLibrarySession();
 
-  await studyEpisode(selectedEpisode, source.name);
+  await studyEpisode(selectedEpisode, finalSource.name);
 }
 
 async function studyEpisode(episode: Episode, sourceName: string) {
@@ -181,7 +250,7 @@ async function showTranscriptFlow(episode: Episode) {
     const article = await fetchArticle(episode.transcriptUrl);
 
     if (!article) {
-        console.log(chalk.red('Could not fetch transcript. You might need to visit the website.'));
+        console.log(chalk.red('Could not fetch transcript automatically.'));
         console.log(chalk.cyan('Link: ') + chalk.underline.blue(episode.transcriptUrl));
         return;
     }
