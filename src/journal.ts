@@ -1,60 +1,48 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import fs from 'fs';
-// @ts-ignore
-import LanguageTool from 'languagetool-api';
 import { saveWord } from './vocabularyManager.js';
 import { JournalEntry } from './types.js';
-import { getJournalFeedback } from './aiManager.js';
+import { getJournalFeedback, getGrammarCorrections } from './aiManager.js';
 import { addXP } from './statsManager.js';
 
 const DB_FILE = './storage.json';
 
-// --- Utility Functions for Grammar Check ---
-function checkGrammar(text: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-        LanguageTool.check({ text, language: 'en-US' }, (error: any, output: any) => {
-            if (error) reject(error);
-            else resolve(output);
-        });
-    });
-}
-
-async function applyCorrections(text: string): Promise<string> {
-    console.log(chalk.blue('\nChecking grammar and style...'));
+export async function applyCorrections(text: string): Promise<string> {
+    console.log(chalk.blue('\nChecking grammar and style with AI...'));
     try {
-        const grammarCheckResult = await checkGrammar(text);
-        if (!grammarCheckResult.matches || grammarCheckResult.matches.length === 0) {
+        const corrections = await getGrammarCorrections(text);
+        if (corrections.length === 0) {
             console.log(chalk.green('No grammar or style issues found. Great job!'));
             return text;
         }
 
         console.log(chalk.yellow('\n--- Grammar and Style Suggestions ---'));
         let currentText = text;
-        let offsetAdjustment = 0;
 
-        for (const match of grammarCheckResult.matches) {
-            const originalLength = match.length;
-            const replacement = match.replacements[0]?.value || '';
-            const startIndex = match.offset + offsetAdjustment;
-            const endIndex = startIndex + originalLength;
+        for (const corr of corrections) {
+            console.log(`\n${chalk.bold('Original:')} ${chalk.red(corr.original)}`);
+            console.log(`${chalk.bold('Correction:')} ${chalk.green(corr.corrected)}`);
+            console.log(`${chalk.bold('Explanation:')} ${chalk.white(corr.explanation)}`);
 
-            console.log(`\n${chalk.bold('Error:')} ${match.message}`);
-            console.log(`${chalk.bold('Context:')} ...${currentText.substring(Math.max(0, startIndex - 20), startIndex)}${chalk.bgRed.white(currentText.substring(startIndex, endIndex))}${currentText.substring(endIndex, Math.min(currentText.length, endIndex + 20))}...`);
-            if (replacement) console.log(`${chalk.bold('Suggestion:')} ${chalk.green(replacement)}`);
+            const { apply } = await inquirer.prompt([{ 
+                type: 'confirm', 
+                name: 'apply', 
+                message: `Apply this correction?`, 
+                default: true 
+            }]);
 
-            const { apply } = await inquirer.prompt([{ type: 'confirm', name: 'apply', message: 'Apply this correction?', default: false }]);
             if (apply) {
-                currentText = currentText.substring(0, startIndex) + replacement + currentText.substring(endIndex);
-                offsetAdjustment += (replacement.length - originalLength);
+                // Simple string replacement for CLI
+                currentText = currentText.replace(corr.original, corr.corrected);
                 console.log(chalk.green('Correction applied.'));
             }
         }
-        console.log(chalk.yellow('-------------------------------------'));
+        console.log(chalk.yellow('\n-------------------------------------'));
         return currentText;
 
     } catch (error: any) {
-        console.error(chalk.red('Error during grammar check:'), error.message);
+        console.error(chalk.red('Error during AI grammar check:'), error.message);
         return text;
     }
 }

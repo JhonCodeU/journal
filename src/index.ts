@@ -10,6 +10,7 @@ import { createChatSession, checkAPIKey } from './aiManager.js';
 import { openPDFHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession } from './audioLibrary.js';
+import { interactiveWritingChallenge } from './writingChallenges.js';
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -72,6 +73,7 @@ async function mainMenu(): Promise<void> {
         { name: '📖 PDF Reader (Books)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
         { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
+        { name: '📝 Daily Writing Challenge', value: 'writing' },
         { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
@@ -97,6 +99,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'audio-lib':
         await interactiveAudioLibrarySession();
+        break;
+    case 'writing':
+        await interactiveWritingChallenge();
         break;
     case 'podcast':
         await interactivePodcastSession();

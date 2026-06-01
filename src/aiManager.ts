@@ -106,6 +106,31 @@ export async function getPodcastVocab(description: string): Promise<{word: strin
     }
 }
 
+export async function getGrammarCorrections(text: string): Promise<{original: string, corrected: string, explanation: string}[]> {
+    const prompt = `Analyze this English text for grammar and spelling errors: "${text}".
+    Return ONLY a JSON array of objects with these keys:
+    "original": the part with the error,
+    "corrected": the corrected version,
+    "explanation": a short explanation in Spanish of why it's wrong.
+    If there are no errors, return [].
+    Example: [{"original": "i like share", "corrected": "I like to share", "explanation": "Falta la preposición 'to' después del verbo 'like'."}]`;
+
+    const response = await callOllama(prompt, "You are a precise English grammar expert. Return ONLY JSON.");
+    try {
+        const jsonStart = response.indexOf('[');
+        const jsonEnd = response.lastIndexOf(']') + 1;
+        const jsonStr = response.substring(jsonStart, jsonEnd);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        return [];
+    }
+}
+
+export async function getWordHelp(spanishPhrase: string): Promise<string> {
+    const prompt = `How do you say "${spanishPhrase}" in English in a natural way? Provide 1-2 options and a very brief explanation in Spanish.`;
+    return await callOllama(prompt, "You are a helpful English-Spanish translation assistant.");
+}
+
 export async function getBilingualPage(text: string): Promise<string> {
     const prompt = `Translate the following book page into Spanish. 
     IMPORTANT: 
