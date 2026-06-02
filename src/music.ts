@@ -49,17 +49,46 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
+    // Genius uses [data-lyrics-container="true"] for modern pages, and .lyrics for older ones.
     const lyricsContainers = $('[data-lyrics-container="true"], .lyrics');
     if (lyricsContainers.length === 0) return null;
 
     let fullText = '';
     lyricsContainers.each((_, elem) => {
-      const html = $(elem).html() || '';
-      fullText += html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '') + '\n\n';
+      const container = $(elem);
+      
+      // Remove known noise elements before extracting text
+      container.find('button, script, style, noscript, .LyricsFooter__Container-sc-1as9epp-0').remove();
+      
+      // Replace <br> with newlines to preserve line breaks
+      container.find('br').replaceWith('\n');
+      
+      // Extract text and add spacing between containers
+      fullText += container.text() + '\n\n';
     });
 
     const rawLines = fullText.split('\n');
-    const cleanLines = rawLines.map(l => l.trim()).filter(l => l !== '');
+    
+    // Filter and clean lines
+    const cleanLines = rawLines
+      .map(l => l.trim())
+      .filter(l => {
+        if (!l) return false;
+        
+        // Filter out obvious metadata/UI noise
+        if (l.includes('Contributors') || l.includes('Translations')) return false;
+        if (l.includes('Lyrics') && (l.includes('“') || l.includes('"'))) return false; // Likely song title/description header
+        if (l.match(/\(Simplified Chinese\)|ไทย|Русский|日本語|한국어|Deutsch|Français|Italiano|Português|Español/)) return false; // Language list
+        if (l.match(/^\d+\s*\[\d+\]/)) return false; // Annotation counts like "213 [68]"
+        if (l.includes('Read More') || l.includes('Embed') || l.includes('Share')) return false;
+        
+        return true;
+      })
+      .map(l => {
+        // Remove annotation numbers like [1], [23], etc.
+        return l.replace(/\[\d+\]/g, '').trim();
+      })
+      .filter(l => l !== '');
 
     if (cleanLines.length === 0) return null;
 
@@ -67,6 +96,7 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     let currentSection: { title: string; lines: string[] } = { title: 'Intro', lines: [] };
 
     for (const line of cleanLines) {
+      // Look for section headers like [Chorus], [Verse 1], etc.
       const match = line.match(/^\[(.+)\]$/);
       if (match) {
         if (currentSection.lines.length > 0) sections.push(currentSection);

@@ -47,5 +47,12 @@
     "strength": 1,
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "to involve in darkness or obscurity"
+  },
+  {
+    "word": "interview",
+    "translation": "entrevista",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The reporter gave the witness an interview."
   }
 ]
