@@ -70,6 +70,7 @@ async function mainMenu(): Promise<void> {
       name: 'action',
       message: 'What would you like to do?',
       choices: [
+      { name: '🎵 Learn with Music (Interactive)', value: 'music' },
         { name: '📖 PDF Reader (Books)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
         { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
@@ -78,7 +79,6 @@ async function mainMenu(): Promise<void> {
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
-        { name: '🎵 Learn with Music (Interactive)', value: 'music' },
         new inquirer.Separator(),
         'Analyze a text',
         'Add a new journal entry',
