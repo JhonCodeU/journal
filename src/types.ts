@@ -4,6 +4,7 @@ export interface VocabularyItem {
     strength: number;
     lastReviewed: string | Date;
     example: string | null;
+    context?: string;
 }
 
 export interface JournalEntry {

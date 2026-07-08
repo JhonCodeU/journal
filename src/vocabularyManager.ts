@@ -49,7 +49,7 @@ export function saveVocabulary(vocabulary: VocabularyItem[]): void {
   fs.writeFileSync(VOCAB_FILE, JSON.stringify(vocabulary, null, 2));
 }
 
-export async function saveWord({ word, translation }: { word: string, translation: string }): Promise<void> {
+export async function saveWord({ word, translation, context }: { word: string, translation: string, context?: string }): Promise<void> {
   const vocabulary = getVocabulary();
   if (vocabulary.some(v => v.word.toLowerCase() === word.toLowerCase())) {
     console.log(chalk.yellow(`"${word}" is already in your vocabulary.`));
@@ -81,6 +81,7 @@ export async function saveWord({ word, translation }: { word: string, translatio
     strength: 1,
     lastReviewed: new Date(0).toISOString(),
     example,
+    context,
   };
   vocabulary.push(newWord);
   saveVocabulary(vocabulary);
@@ -117,6 +118,14 @@ export async function getWordDetails(word: string): Promise<void> {
     console.log(`${chalk.yellow('Phonetic:')} ${phonetic || 'N/A'}`);
     console.log(`${chalk.yellow('Definition:')} ${definition}`);
     console.log(`${chalk.yellow('Example:')} ${example}`);
+
+    // Show context if available
+    const allVocab = getVocabulary();
+    const item = allVocab.find(v => v.word.toLowerCase() === word.toLowerCase());
+    if (item?.context) {
+      console.log(`${chalk.yellow('Context:')} ${chalk.italic(item.context)}`);
+    }
+
     console.log('\n------------------------\n');
 
   } catch (error) {

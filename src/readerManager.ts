@@ -4,8 +4,9 @@ import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
-import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis } from './aiManager.js';
-import { saveWord } from './vocabularyManager.js';
+import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis, getBatchTranslations } from './aiManager.js';
+import { saveWord, getVocabulary } from './vocabularyManager.js';
+import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -38,7 +39,6 @@ function speak(text: string, rate: string = '-15%') {
     fs.writeFileSync(textFile, cleanText, 'utf8');
     console.log(chalk.yellow('  ⏳ Generando audio...'));
 
-    // Paso 1: edge-tts genera el mp3
     const tts = spawn(edgeTtsPath, [
         '--voice', 'en-US-JennyNeural',
         `--rate=${rate}`,
@@ -64,7 +64,6 @@ function speak(text: string, rate: string = '-15%') {
             return;
         }
 
-        // Paso 2: ffmpeg normaliza el volumen
         const ffmpeg = spawn('ffmpeg', [
             '-i', tempRaw,
             '-af', 'loudnorm=I=-9:TP=-0.5:LRA=11,volume=1.5',
@@ -85,7 +84,6 @@ function speak(text: string, rate: string = '-15%') {
                 return;
             }
 
-            // Paso 3: VLC reproduce
             const vlc = spawn('cvlc', [
                 '-I', 'dummy',
                 '--no-video',
@@ -120,6 +118,87 @@ function getProgress(): ReadingProgress {
 
 function saveProgress(progress: ReadingProgress) {
     fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
+}
+
+// ─── Vocabulario y Highlighting ──────────────────────────────────────────────
+
+function extractUncommonWordsFromText(text: string): string[] {
+    const words = text.match(/\b[a-zA-Z]{3,}\b/g) || [];
+    const unique = new Set<string>();
+    const vocab = getVocabulary();
+    const knownWords = new Set(vocab.map(v => v.word.toLowerCase()));
+
+    for (const word of words) {
+        const clean = word.toLowerCase();
+        if (!commonWords.has(clean) && !knownWords.has(clean)) {
+            unique.add(word);
+        }
+    }
+    return Array.from(unique).sort();
+}
+
+function highlightDifficultWords(text: string): string {
+    const words = text.match(/\b[a-zA-Z]+\b/g) || [];
+    const difficult = new Set<string>();
+    const vocab = getVocabulary();
+    const knownWords = new Set(vocab.map(v => v.word.toLowerCase()));
+
+    for (const word of words) {
+        const clean = word.toLowerCase();
+        if (!commonWords.has(clean) && !knownWords.has(clean)) {
+            difficult.add(word);
+        }
+    }
+
+    let highlighted = text;
+    for (const word of difficult) {
+        highlighted = highlighted.replace(
+            new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'),
+            chalk.yellow(word)
+        );
+    }
+    return highlighted;
+}
+
+function extractContextSentence(text: string, word: string): string {
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+    const found = sentences.find(s =>
+        new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)
+    );
+    return found ? found.trim().substring(0, 120) : text.substring(0, 100);
+}
+
+async function batchSavePageVocab(words: string[], pageText: string): Promise<void> {
+    if (words.length === 0) return;
+
+    const { selectedWords } = await inquirer.prompt([{
+        type: 'checkbox',
+        name: 'selectedWords',
+        message: `Palabras nuevas en esta página (${words.length}):`,
+        choices: words.slice(0, 25).map(w => ({ name: w, value: w, checked: true })),
+        loop: false,
+    }]);
+
+    if (selectedWords.length === 0) {
+        console.log(chalk.dim('  Ninguna palabra guardada.\n'));
+        return;
+    }
+
+    console.log(chalk.blue('  Traduciendo con IA...'));
+    const translations = await getBatchTranslations(selectedWords);
+
+    let saved = 0;
+    for (const t of translations) {
+        if (t.translation) {
+            const context = extractContextSentence(pageText, t.word);
+            await saveWord({ word: t.word, translation: t.translation, context });
+            saved++;
+        }
+    }
+    if (saved > 0) {
+        console.log(chalk.green(`\n✔ ${saved} palabras guardadas con contexto.\n`));
+        addXP(saved * 10);
+    }
 }
 
 // --- PDF READER SECTION ---
@@ -181,7 +260,6 @@ export async function openWebReader() {
 
     const article = await fetchArticle(url);
     if (article) {
-        // Split content into "pages" (approx 2000 chars each)
         const pageSize = 2000;
         const pages = [];
         for (let i = 0; i < article.content.length; i += pageSize) {
@@ -261,13 +339,29 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
     const progress = getProgress();
 
     while (currentIndex < pages.length) {
+        const pageText = pages[currentIndex].text.trim();
+        const uncommon = extractUncommonWordsFromText(pageText);
+
         console.clear();
         console.log(chalk.blue.bold(`\n📖 ${title}`));
         console.log(chalk.gray(`Página ${currentIndex + 1} de ${pages.length}`));
         console.log(chalk.cyan('='.repeat(50)));
-        console.log(`\n${pages[currentIndex].text.trim()}\n`);
+
+        // Highlighted text
+        console.log(`\n${highlightDifficultWords(pageText)}\n`);
         console.log(chalk.cyan('='.repeat(50)));
-        console.log(chalk.italic.gray(' (Usa las flechas ↑/↓ para elegir y Enter para confirmar)\n'));
+
+        // Uncommon words bar
+        if (uncommon.length > 0) {
+            const displayWords = uncommon.slice(0, 12);
+            console.log(chalk.yellow(`\n📝 ${uncommon.length} palabra${uncommon.length !== 1 ? 's' : ''} nueva${uncommon.length !== 1 ? 's' : ''}: `) + 
+                displayWords.join(', ') +
+                (uncommon.length > 12 ? chalk.dim(`... (+${uncommon.length - 12} más)`) : ''));
+        } else {
+            console.log(chalk.green('\n✅ Todas las palabras de esta página son conocidas.\n'));
+        }
+
+        console.log(chalk.italic.gray('\n(Usa las flechas ↑/↓ para elegir y Enter para confirmar)\n'));
 
         const { action } = await inquirer.prompt([
             {
@@ -281,15 +375,31 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     { name: '🐢  Escuchar Lento (para estudiar)', value: 'speak_slow' },
                     { name: '🐇  Escuchar Rápido (práctica avanzada)', value: 'speak_fast' },
                     { name: '🔇  Detener Narración', value: 'stop' },
+                    { name: '📝  Guardar vocabulario de esta página', value: 'savePageVocab' },
+                    { name: '🔍  Buscar palabra', value: 'lookup' },
                     { name: '🌐  Ver Traducción Bilingüe (IA)', value: 'bilingual' },
                     { name: '🧠  Analizar Vocabulario y Expresiones (IA)', value: 'analyze' },
                     { name: '✨  Simplificar a nivel A2 (IA)', value: 'simplify' },
                     { name: '🤖  IA: Explicar esta parte', value: 'explain' },
-                    { name: '💾  Guardar Vocabulario Manual', value: 'vocab' },
                     { name: '🚪  Cerrar', value: 'exit' }
                 ]
             }
         ]);
+
+        // ── Auto-prompt on page leave ──
+        if (action === 'next' || action === 'prev') {
+            if (uncommon.length > 0) {
+                const { saveVocab } = await inquirer.prompt([{
+                    type: 'confirm',
+                    name: 'saveVocab',
+                    message: `📚 ¿Guardar ${uncommon.length} palabra${uncommon.length !== 1 ? 's' : ''} de esta página al vocabulario?`,
+                    default: false,
+                }]);
+                if (saveVocab) {
+                    await batchSavePageVocab(uncommon, pageText);
+                }
+            }
+        }
 
         if (action === 'next') {
             if (currentIndex < pages.length - 1) {
@@ -308,22 +418,42 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     saveProgress(progress);
                 }
             }
-        // Handlers — reemplaza el bloque speak duplicado por esto:
         } else if (action === 'speak') {
             console.log(chalk.blue('\nNarrando a velocidad normal...'));
-            speak(pages[currentIndex].text, '-15%');
+            speak(pageText, '-15%');
         } else if (action === 'speak_slow') {
             console.log(chalk.blue('\nNarrando lento para estudiar...'));
-            speak(pages[currentIndex].text, '-30%');
+            speak(pageText, '-30%');
         } else if (action === 'speak_fast') {
             console.log(chalk.blue('\nNarrando rápido...'));
-            speak(pages[currentIndex].text, '+10%');
+            speak(pageText, '+10%');
         } else if (action === 'stop') {
             console.log(chalk.yellow('\nNarración detenida.'));
             stopAudio();
+        } else if (action === 'lookup') {
+            const { word } = await inquirer.prompt([{
+                type: 'input',
+                name: 'word',
+                message: '🔍 Palabra a buscar:',
+            }]);
+            if (word.trim()) {
+                const translations = await getBatchTranslations([word.trim()]);
+                if (translations[0]?.translation) {
+                    console.log(chalk.green(`\n  ${word.trim()} → ${translations[0].translation}`));
+                    const context = extractContextSentence(pageText, word.trim());
+                    if (context) {
+                        console.log(chalk.dim(`  Contexto: "${context}"`));
+                    }
+                } else {
+                    console.log(chalk.yellow('\n  No se pudo traducir.\n'));
+                }
+                await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Enter para continuar...' }]);
+            }
+        } else if (action === 'savePageVocab') {
+            await batchSavePageVocab(uncommon, pageText);
         } else if (action === 'bilingual') {
             console.log(chalk.blue('\nTraduciendo página con IA...'));
-            const bilingual = await getBilingualPage(pages[currentIndex].text);
+            const bilingual = await getBilingualPage(pageText);
             console.clear();
             console.log(chalk.blue.bold(`\n📖 MODO BILINGÜE: ${title} (Pag. ${currentIndex + 1})`));
             console.log(chalk.cyan('='.repeat(50)));
@@ -339,14 +469,14 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver...' }]);
         } else if (action === 'analyze') {
             console.log(chalk.blue('\nExtrayendo vocabulario y expresiones con IA...'));
-            const analysis = await getPageAnalysis(pages[currentIndex].text);
+            const analysis = await getPageAnalysis(pageText);
             console.log(chalk.green.bold('\n--- ANÁLISIS DE LA PÁGINA ---'));
             console.log(analysis);
             console.log(chalk.green.bold('----------------------------'));
             await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver...' }]);
         } else if (action === 'simplify') {
             console.log(chalk.blue('\nSimplificando texto para nivel A2...'));
-            const simplified = await simplifyToA2(pages[currentIndex].text);
+            const simplified = await simplifyToA2(pageText);
             console.clear();
             console.log(chalk.blue.bold(`\n✨ MODO SIMPLIFICADO A2 ✨`));
             console.log(chalk.cyan('='.repeat(50)));
@@ -355,49 +485,15 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver al texto original...' }]);
         } else if (action === 'explain') {
             console.log(chalk.blue('\nAnalizando con IA...'));
-            const explanation = await getStylisticFeedback(`Explica esta parte de forma sencilla en inglés y español: ${pages[currentIndex].text}`);
+            const explanation = await getStylisticFeedback(`Explica esta parte de forma sencilla en inglés y español: ${pageText}`);
             console.log(chalk.magenta.bold('\n--- Explicación del Tutor ---'));
             console.log(explanation);
             console.log(chalk.magenta.bold('----------------------------'));
             await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver a la lectura...' }]);
-        } else if (action === 'vocab') {
-            const { word } = await inquirer.prompt([{ type: 'input', name: 'word', message: 'Palabra que quieres guardar:' }]);
-            if (word) {
-                const { actionVocab } = await inquirer.prompt([{
-                    type: 'select',
-                    name: 'actionVocab',
-                    message: `¿Qué quieres hacer con "${word}"?`,
-                    choices: [
-                        { name: '🔊 Escuchar pronunciación', value: 'hear' },
-                        { name: '💾 Guardar con traducción', value: 'save' },
-                        { name: '❌ Cancelar', value: 'cancel' }
-                    ]
-                }]);
-
-                if (actionVocab === 'hear') {
-                    speak(word);
-                    // Preguntar de nuevo si quiere guardar después de escuchar
-                    const { confirmSave } = await inquirer.prompt([{ type: 'confirm', name: 'confirmSave', message: '¿Quieres guardarla ahora?' }]);
-                    if (confirmSave) {
-                        const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
-                        if (translation) {
-                            await saveWord({ word, translation });
-                            addXP(10);
-                        }
-                    }
-                } else if (actionVocab === 'save') {
-                    const { translation } = await inquirer.prompt([{ type: 'input', name: 'translation', message: `Traducción al español para "${word}":` }]);
-                    if (translation) {
-                        await saveWord({ word, translation });
-                        addXP(10);
-                    }
-                }
-            }
         } else if (action === 'exit') {
             stopAudio();
             break;
         }
-
     }
 }
 
