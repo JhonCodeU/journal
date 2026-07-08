@@ -260,15 +260,10 @@ export async function openWebReader() {
 
     const article = await fetchArticle(url);
     if (article) {
-        const pageSize = 2000;
-        const pages = [];
-        for (let i = 0; i < article.content.length; i += pageSize) {
-            pages.push({
-                text: article.content.substring(i, i + pageSize),
-                num: Math.floor(i / pageSize) + 1
-            });
-        }
-
+        const pages = article.pages.map((text, i) => ({
+            text,
+            num: i + 1,
+        }));
         await displayReader(article.title, pages);
     }
 }
