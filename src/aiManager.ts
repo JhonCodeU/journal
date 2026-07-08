@@ -2,7 +2,7 @@ import axios from 'axios';
 import chalk from 'chalk';
 
 const OLLAMA_URL = "http://localhost:11434/api";
-const MODEL_NAME = "llama3";
+const MODEL_NAME = "qwen2.5:3b";
 
 export function checkAPIKey(): boolean {
     return true; 
@@ -156,6 +156,23 @@ export async function getPageAnalysis(text: string): Promise<string> {
     3. A very brief tip on a grammar point found in this specific text.`;
     
     return await callOllama(prompt, "You are an expert English teacher for Spanish speakers.");
+}
+
+export async function getBatchTranslations(words: string[]): Promise<{word: string, translation: string}[]> {
+  if (words.length === 0) return [];
+  const prompt = `Translate the following English words to Spanish. Return ONLY a JSON array of objects with "word" and "translation" keys. 
+Words: ${JSON.stringify(words)}
+Example: [{"word": "heartache", "translation": "angustia"}, {"word": "ripped", "translation": "rasgado"}]`;
+
+  const response = await callOllama(prompt, "You are a translator. Return ONLY valid JSON array.");
+  try {
+    const jsonStart = response.indexOf('[');
+    const jsonEnd = response.lastIndexOf(']') + 1;
+    const jsonStr = response.substring(jsonStart, jsonEnd);
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    return words.map(w => ({ word: w, translation: '' }));
+  }
 }
 
 // Emulación del sistema de chat de Gemini para Ollama

@@ -3,11 +3,16 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { execSync } from 'child_process';
 import { saveWord } from './vocabularyManager.js';
-import { getSongContext, getBilingualLyrics } from './aiManager.js';
+import { getSongContext, getBilingualLyrics, getBatchTranslations } from './aiManager.js';
+import { commonWords } from './vocabulary.js';
+import { getVocabulary } from './vocabularyManager.js';
+import fs from 'fs';
 
 const GENIUS_API_BASE_URL = 'https://api.genius.com';
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
+const MUSIC_JOURNAL_FILE = './music_journal.json';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -15,18 +20,103 @@ type InteractionMode = 'word-by-word' | 'full-line' | 'multiple-choice';
 
 interface ProcessedLine {
   originalLine: string;
-  parts: LinePart[];          // Alternancia de texto fijo y blanks
+  parts: LinePart[];
 }
 
 interface LinePart {
   type: 'text' | 'blank';
-  content: string;            // Texto visible o palabra original
-  index: number;              // Índice global del blank (solo si type === 'blank')
+  content: string;
+  index: number;
 }
 
 interface ProcessedSection {
   title: string;
   lines: ProcessedLine[];
+}
+
+interface SongHistory {
+  artist: string;
+  title: string;
+  date: string;
+  score: number;
+  total: number;
+  mode: InteractionMode;
+  difficulty: number;
+  missedWords: string[];
+  lyrics: string;
+}
+
+// ─── Persistencia ─────────────────────────────────────────────────────────────
+
+function loadSongHistory(): SongHistory[] {
+  if (!fs.existsSync(MUSIC_JOURNAL_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(MUSIC_JOURNAL_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function saveSongHistory(history: SongHistory[]): void {
+  fs.writeFileSync(MUSIC_JOURNAL_FILE, JSON.stringify(history, null, 2));
+}
+
+// ─── Vocabulario pre-juego ────────────────────────────────────────────────────
+
+function extractUncommonWords(lyricSections: { title: string; lines: string[] }[]): string[] {
+  const unique = new Set<string>();
+  for (const section of lyricSections) {
+    for (const line of section.lines) {
+      const tokens = line.toLowerCase().split(/[\s,.;:!?()"']+/);
+      for (const token of tokens) {
+        const clean = token.replace(/[^a-z0-9]/g, '');
+        if (clean.length > 2 && !commonWords.has(clean)) {
+          unique.add(clean);
+        }
+      }
+    }
+  }
+  return Array.from(unique).sort();
+}
+
+function extractAllSongWords(lyricSections: { title: string; lines: string[] }[]): { word: string; line: string }[] {
+  const results: { word: string; line: string }[] = [];
+  for (const section of lyricSections) {
+    for (const line of section.lines) {
+      const tokens = line.toLowerCase().split(/[\s,.;:!?()"']+/);
+      for (const token of tokens) {
+        const clean = token.replace(/[^a-z0-9]/g, '');
+        if (clean.length > 2 && !commonWords.has(clean)) {
+          results.push({ word: clean, line });
+        }
+      }
+    }
+  }
+  return results;
+}
+
+async function showPreGameVocab(words: string[]) {
+  if (words.length === 0) {
+    console.log(chalk.green('  ¡Todas las palabras son comunes! Nada nuevo que estudiar.\n'));
+    return;
+  }
+
+  console.log(chalk.yellow.bold(`\n─── VOCABULARIO NUEVO EN ESTA CANCIÓN (${words.length} palabras) ───`));
+  
+  // Show in chunks
+  const chunkSize = 10;
+  for (let i = 0; i < words.length; i += chunkSize) {
+    const chunk = words.slice(i, i + chunkSize);
+    const translations = await getBatchTranslations(chunk);
+    for (const t of translations) {
+      if (t.translation) {
+        console.log(`  ${chalk.yellow(t.word.padEnd(20))} → ${chalk.cyan(t.translation)}`);
+      } else {
+        console.log(`  ${chalk.yellow(t.word)}`);
+      }
+    }
+  }
+  console.log(chalk.yellow('────────────────────────────────────────────────\n'));
 }
 
 // ─── API & Scraping ───────────────────────────────────────────────────────────
@@ -49,45 +139,31 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
-    // Genius uses [data-lyrics-container="true"] for modern pages, and .lyrics for older ones.
     const lyricsContainers = $('[data-lyrics-container="true"], .lyrics');
     if (lyricsContainers.length === 0) return null;
 
     let fullText = '';
     lyricsContainers.each((_, elem) => {
       const container = $(elem);
-      
-      // Remove known noise elements before extracting text
       container.find('button, script, style, noscript, .LyricsFooter__Container-sc-1as9epp-0').remove();
-      
-      // Replace <br> with newlines to preserve line breaks
       container.find('br').replaceWith('\n');
-      
-      // Extract text and add spacing between containers
       fullText += container.text() + '\n\n';
     });
 
     const rawLines = fullText.split('\n');
     
-    // Filter and clean lines
     const cleanLines = rawLines
       .map(l => l.trim())
       .filter(l => {
         if (!l) return false;
-        
-        // Filter out obvious metadata/UI noise
         if (l.includes('Contributors') || l.includes('Translations')) return false;
-        if (l.includes('Lyrics') && (l.includes('“') || l.includes('"'))) return false; // Likely song title/description header
-        if (l.match(/\(Simplified Chinese\)|ไทย|Русский|日本語|한국어|Deutsch|Français|Italiano|Português|Español/)) return false; // Language list
-        if (l.match(/^\d+\s*\[\d+\]/)) return false; // Annotation counts like "213 [68]"
+        if (l.includes('Lyrics') && (l.includes('"') || l.includes('"'))) return false;
+        if (l.match(/\(Simplified Chinese\)|ไทย|Русский|日本語|한국어|Deutsch|Français|Italiano|Português|Español/)) return false;
+        if (l.match(/^\d+\s*\[\d+\]/)) return false;
         if (l.includes('Read More') || l.includes('Embed') || l.includes('Share')) return false;
-        
         return true;
       })
-      .map(l => {
-        // Remove annotation numbers like [1], [23], etc.
-        return l.replace(/\[\d+\]/g, '').trim();
-      })
+      .map(l => l.replace(/\[\d+\]/g, '').trim())
       .filter(l => l !== '');
 
     if (cleanLines.length === 0) return null;
@@ -96,7 +172,6 @@ async function getLyricsFromGeniusPage(url: string): Promise<{ title: string; li
     let currentSection: { title: string; lines: string[] } = { title: 'Intro', lines: [] };
 
     for (const line of cleanLines) {
-      // Look for section headers like [Chorus], [Verse 1], etc.
       const match = line.match(/^\[(.+)\]$/);
       if (match) {
         if (currentSection.lines.length > 0) sections.push(currentSection);
@@ -120,9 +195,33 @@ function normalizeWord(w: string): string {
   return w.toLowerCase().replace(/[^a-z0-9']/g, '');
 }
 
+function getWeakWordsInSong(
+  lyricSections: { title: string; lines: string[] }[]
+): Set<string> {
+  const vocabulary = getVocabulary();
+  const weakWords = new Set(
+    vocabulary
+      .filter(v => v.strength <= 2)
+      .map(v => v.word.toLowerCase())
+  );
+  
+  const found = new Set<string>();
+  for (const section of lyricSections) {
+    for (const line of section.lines) {
+      const tokens = line.toLowerCase().split(/[\s,.;:!?()"']+/);
+      for (const token of tokens) {
+        const clean = token.replace(/[^a-z0-9']/g, '');
+        if (weakWords.has(clean)) found.add(clean);
+      }
+    }
+  }
+  return found;
+}
+
 function createFillInTheBlanks(
   sections: { title: string; lines: string[] }[],
-  difficulty: number
+  difficulty: number,
+  weakWords: Set<string>
 ): { processedSections: ProcessedSection[]; totalBlanks: number } {
   let blankIndex = 0;
   const processedSections: ProcessedSection[] = [];
@@ -141,11 +240,31 @@ function createFillInTheBlanks(
       });
 
       const targetCount = Math.max(1, Math.ceil(fillableIndices.length * difficulty));
-      const indicesToBlank = new Set<number>();
+      
+      // Prioritize weak words for blanking
+      const weakIndices: number[] = [];
+      const normalIndices: number[] = [];
+      for (const idx of fillableIndices) {
+        const clean = tokens[idx].replace(/[^a-zA-Z0-9']/g, '').toLowerCase();
+        if (weakWords.has(clean)) {
+          weakIndices.push(idx);
+        } else {
+          normalIndices.push(idx);
+        }
+      }
 
-      const shuffled = [...fillableIndices].sort(() => Math.random() - 0.5);
-      for (let i = 0; i < Math.min(targetCount, shuffled.length); i++) {
-        indicesToBlank.add(shuffled[i]);
+      const indicesToBlank = new Set<number>();
+      const shuffledWeak = [...weakIndices].sort(() => Math.random() - 0.5);
+      const shuffledNormal = [...normalIndices].sort(() => Math.random() - 0.5);
+      
+      // First pick from weak words
+      for (let i = 0; i < Math.min(targetCount, shuffledWeak.length); i++) {
+        indicesToBlank.add(shuffledWeak[i]);
+      }
+      // Then fill remaining from normal words
+      const remaining = targetCount - indicesToBlank.size;
+      for (let i = 0; i < Math.min(remaining, shuffledNormal.length); i++) {
+        indicesToBlank.add(shuffledNormal[i]);
       }
 
       const parts: LinePart[] = [];
@@ -157,7 +276,7 @@ function createFillInTheBlanks(
             parts.push({ type: 'text', content: textBuffer, index: -1 });
             textBuffer = '';
           }
-          const cleanWord = token.replace(/[^a-zA-Z0-9'']/g, '');
+          const cleanWord = token.replace(/[^a-zA-Z0-9']/g, '');
           parts.push({ type: 'blank', content: cleanWord, index: blankIndex++ });
         } else {
           textBuffer += token;
@@ -191,7 +310,7 @@ function getAllWordsFromSections(sections: { title: string; lines: string[] }[])
   return Array.from(words);
 }
 
-// ─── Renderizado de líneas ────────────────────────────────────────────────────
+// ─── Renderizado ──────────────────────────────────────────────────────────────
 
 function renderLineWithBlanks(parts: LinePart[]): string {
   return parts.map(p => {
@@ -206,11 +325,11 @@ function renderLineWithAnswers(parts: LinePart[], answers: Map<number, string>):
     const answer = answers.get(p.index);
     const correct = normalizeWord(answer ?? '') === normalizeWord(p.content);
     if (!answer) return chalk.red(`[${p.content}]`);
-    return correct ? chalk.green(answer) : chalk.red(answer) + chalk.dim(`(${p.content})`);
+    return correct ? chalk.green(answer) : chalk.red(answer) + chalk.dim(` (${p.content})`);
   }).join('');
 }
 
-// ─── Lógica de juego por modo ─────────────────────────────────────────────────
+// ─── Lógica de juego ──────────────────────────────────────────────────────────
 
 async function playWordByWord(
   parts: LinePart[],
@@ -436,12 +555,34 @@ export async function interactiveMusicSession(): Promise<void> {
 
   const { url: selectedSongUrl, title, artist } = selectedSong;
 
+  // Auto-open YouTube
+  const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${artist} ${title} lyrics`)}`;
+  try {
+    execSync(`xdg-open "${youtubeUrl}" 2>/dev/null || open "${youtubeUrl}" 2>/dev/null || start "" "${youtubeUrl}"`, { stdio: 'ignore' });
+    console.log(chalk.dim(`  🎧 Abriendo YouTube: ${youtubeUrl}\n`));
+  } catch { 
+    // fallback: just show the link
+  }
+
   console.log(chalk.blue('\nObteniendo letra...'));
   const lyricSections = await getLyricsFromGeniusPage(selectedSongUrl);
 
   if (!lyricSections || lyricSections.length === 0) {
     console.log(chalk.red('No se pudo obtener la letra.\n'));
     return;
+  }
+
+  // ── Vocabulario pre-juego ──
+  const unusualWords = extractUncommonWords(lyricSections);
+  const { showVocab } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'showVocab',
+    message: `Se encontraron ${unusualWords.length} palabras nuevas en esta canción. ¿Quieres estudiarlas antes de jugar?`,
+    default: true,
+  }]);
+
+  if (showVocab && unusualWords.length > 0) {
+    await showPreGameVocab(unusualWords);
   }
 
   // PRE-SESIÓN: Análisis y Letras Bilingües
@@ -521,10 +662,15 @@ export async function interactiveMusicSession(): Promise<void> {
   }]);
 
   console.log(chalk.green('\n¡Prepárate!'));
-  const youtubeLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-  console.log(`🎧 Escúchala aquí: ${chalk.underline.blue(youtubeLink)}\n`);
+  console.log(`🎧 Reproduciendo: ${chalk.underline.blue(youtubeUrl)}\n`);
 
-  const { processedSections, totalBlanks } = createFillInTheBlanks(lyricSections, difficulty);
+  // Detect weak words from vocabulary to prioritize
+  const weakWords = getWeakWordsInSong(lyricSections);
+  if (weakWords.size > 0) {
+    console.log(chalk.yellow(`  📝 Priorizando ${weakWords.size} palabra${weakWords.size !== 1 ? 's' : ''} que necesitan repaso...\n`));
+  }
+
+  const { processedSections, totalBlanks } = createFillInTheBlanks(lyricSections, difficulty, weakWords);
   const allWordsInSong = getAllWordsFromSections(lyricSections);
 
   const missedWords = new Set<string>();
@@ -569,26 +715,45 @@ export async function interactiveMusicSession(): Promise<void> {
   }
   console.log(chalk.bold(`─────────────────────────────────\n`));
 
+  // ── Guardar historial ──
+  const history = loadSongHistory();
+  const allLyrics = lyricSections.map(s => `[${s.title}]\n${s.lines.join('\n')}`).join('\n\n');
+  history.push({
+    artist,
+    title,
+    date: new Date().toISOString(),
+    score: correctCount,
+    total: totalBlanks,
+    mode,
+    difficulty,
+    missedWords: [...missedWords],
+    lyrics: allLyrics,
+  });
+  saveSongHistory(history);
+  console.log(chalk.dim('  📝 Progreso guardado en music_journal.json\n'));
+
+  // ── Guardado masivo de palabras falladas ──
   if (missedWords.size > 0) {
     const { confirm } = await inquirer.prompt([{
       type: 'confirm',
       name: 'confirm',
-      message: '¿Guardar palabras falladas al vocabulario?',
+      message: `¿Guardar ${missedWords.size} palabra${missedWords.size !== 1 ? 's' : ''} fallada${missedWords.size !== 1 ? 's' : ''} al vocabulario?`,
       default: true,
     }]);
 
     if (confirm) {
-      for (const word of missedWords) {
-        const { translation } = await inquirer.prompt([{
-          type: 'input',
-          name: 'translation',
-          message: `Traducción al español de "${chalk.yellow(word)}":`,
-        }]);
-        if (translation.trim()) {
-          await saveWord({ word, translation: translation.trim() });
+      console.log(chalk.blue('  Traduciendo palabras con IA...'));
+      const missedArray = [...missedWords];
+      const translations = await getBatchTranslations(missedArray);
+      
+      let saved = 0;
+      for (const t of translations) {
+        if (t.translation) {
+          await saveWord({ word: t.word, translation: t.translation });
+          saved++;
         }
       }
-      console.log(chalk.green('\n✔ Palabras guardadas al vocabulario.\n'));
+      console.log(chalk.green(`\n✔ ${saved} de ${missedWords.size} palabras guardadas al vocabulario.\n`));
     }
   }
 }
