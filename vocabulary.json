@@ -254,5 +254,40 @@
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "She shuddered at the sight of the snake.",
     "context": "The Dursleys\nshuddered to think what the neighbors would say if the Potters arrived in the\nstreet."
+  },
+  {
+    "word": "vocabulary",
+    "translation": "vocabulario",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "My Russian vocabulary is very limited."
+  },
+  {
+    "word": "accessible",
+    "translation": "accesible",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "an accessible town or mountain"
+  },
+  {
+    "word": "cycling",
+    "translation": "bicicletas",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Avoid cycling the device unnecessarily."
+  },
+  {
+    "word": "subscribing",
+    "translation": "suscribirse",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Would you like to subscribe or subscribe a friend to our new magazine, Lexicography Illustrated?"
+  },
+  {
+    "word": "newsletter",
+    "translation": "newsletter",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I signed up for the newsletter to stay updated on the latest tech trends."
   }
 ]

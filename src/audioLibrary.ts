@@ -83,7 +83,7 @@ async function fetchFeed(url: string, sourceType: string = 'generic'): Promise<E
 
       let transcriptUrl = link;
       if (sourceType === 'bbc') {
-          const match = rawDescription.match(/https:\/\/www\.bbc\.co\.uk\/learningenglish\/[^\s<]*/);
+          const match = rawDescription.match(/https:\/\/www\.bbc\.co\.uk\/learningenglish\/[^\s<"]*/);
           if (match) transcriptUrl = match[0];
       }
 
@@ -416,7 +416,6 @@ export async function quickLatestBBC(): Promise<void> {
       stopAudioVLC();
     } else if (action === 'transcript') {
       await showTranscriptFlow(ep);
-      await extractVocabularyAIFlow(ep.description);
     } else if (action === 'back') {
       stopAudioVLC();
       break;
