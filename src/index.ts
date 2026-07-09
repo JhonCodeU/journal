@@ -4,13 +4,15 @@ import { analyzeText } from './reader.js';
 import { addEntry, viewEntries } from './journal.js';
 import { viewVocabulary } from './vocabularyManager.js';
 import { interactiveMusicSession } from './music.js';
-import { reviewSession, getWordsToReview, practiceSentences } from './srs.js';
+import { reviewSession, getWordsToReview, practiceSentences, quickReview } from './srs.js';
 import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
 import { openPDFHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
-import { interactiveAudioLibrarySession } from './audioLibrary.js';
+import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
+
+const args = process.argv.slice(2);
 
 function showStatus(): void {
   const wordsToReview = getWordsToReview();
@@ -135,7 +137,20 @@ async function mainMenu(): Promise<void> {
       process.exit(0);
   }
 
-  mainMenu();
+  if (!args.includes('--stay')) mainMenu();
 }
 
-mainMenu();
+// ── CLI Flags ────────────────────────────────────────────────────
+if (args.includes('--review') || args.includes('-r')) {
+  updateStreak();
+  showStatus();
+  await quickReview();
+  console.log(chalk.gray('\nUsa ' + chalk.italic('npm start') + ' para el menú completo.\n'));
+} else if (args.includes('--bbc') || args.includes('-b')) {
+  updateStreak();
+  console.log(chalk.cyan.bold('\n🎧 BBC 6 Minute English (Acceso Directo)\n'));
+  await quickLatestBBC();
+  console.log(chalk.gray('\nUsa ' + chalk.italic('npm start') + ' para el menú completo.\n'));
+} else {
+  mainMenu();
+}

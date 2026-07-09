@@ -61,6 +61,67 @@ export async function reviewSession(): Promise<void> {
   console.log(chalk.green.bold('\nReview session complete! Keep up the great work!\n'));
 }
 
+export async function quickReview(): Promise<void> {
+  const wordsToReview = getWordsToReview();
+
+  if (wordsToReview.length === 0) {
+    console.log(chalk.green.bold('\n✅ No hay palabras pendientes. ¡Excelente!\n'));
+    return;
+  }
+
+  const limit = Math.min(3, wordsToReview.length);
+
+  const { choice } = await inquirer.prompt([{
+    type: 'select',
+    name: 'choice',
+    message: `Tienes ${wordsToReview.length} palabras. ¿Cuántas repasas?`,
+    choices: [
+      { name: `⚡ Rápido (3 palabras) [~1 min]`, value: 3 },
+      { name: `📚 Medio (${Math.min(7, wordsToReview.length)} palabras) [~3 min]`, value: Math.min(7, wordsToReview.length) },
+      { name: `🎯 Todas (${wordsToReview.length} palabras) [~${Math.round(wordsToReview.length * 0.5)} min]`, value: wordsToReview.length },
+      { name: '↩️  Cancelar', value: 0 }
+    ]
+  }]);
+
+  if (choice === 0) return;
+
+  const selected = wordsToReview.slice(0, choice);
+
+  console.log(chalk.cyan.bold(`\n--- Quick Review: ${selected.length} palabras ---\n`));
+
+  let sessionXP = 0;
+  for (const word of selected) {
+    const { answer } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'answer',
+        message: `"${chalk.yellow(word.word)}" →`,
+      },
+    ]);
+
+    if (answer.toLowerCase().trim() === word.translation.toLowerCase().trim()) {
+      console.log(chalk.green('  ✔ Correcto!\n'));
+      word.strength += 1;
+      sessionXP += 10;
+    } else {
+      console.log(chalk.red(`  ✘ ${word.translation}\n`));
+      word.strength = Math.max(1, word.strength - 1);
+      sessionXP += 2;
+    }
+    word.lastReviewed = new Date().toISOString();
+  }
+
+  addXP(sessionXP);
+  const vocabulary = getVocabulary();
+  const updatedVocabulary = vocabulary.map(v => {
+    const reviewedWord = selected.find(rw => rw.word === v.word);
+    return reviewedWord || v;
+  });
+  saveVocabulary(updatedVocabulary);
+
+  console.log(chalk.green.bold(`\n✔ ${selected.length} palabras repasadas. +${sessionXP} XP\n`));
+}
+
 export async function practiceSentences(): Promise<void> {
   const vocabulary = getVocabulary().filter(v => v.example);
 

@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
+    "review": "tsx src/index.ts --review",
+    "bbc": "tsx src/index.ts --bbc",
     "build": "tsc"
   },
   "keywords": [
