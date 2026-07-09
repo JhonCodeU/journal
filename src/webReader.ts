@@ -27,8 +27,13 @@ const SITE_CONFIGS: Record<string, SiteConfig> = {
     },
     'bbc.co.uk': {
         selectors: ['[data-component="text-block"]', 'article [data-component]', '.story-body__inner'],
-        noiseFilters: ['More to read', 'Related'],
+        noiseFilters: ['More to read', 'Related', 'Practise your reading skills', 'Learn more about'],
         minParagraphLength: 40,
+    },
+    'learningenglish': {
+        selectors: ['.widget-podcast', '.main-content', '.content', 'article'],
+        noiseFilters: ['Episode 260', 'Practise your reading skills', 'Learn more about', 'HomeHome', 'English Change Language'],
+        minParagraphLength: 30,
     },
     'nytimes.com': {
         selectors: ['section.StoryBodyCompanionColumn', 'article#story', '.css-53u6y8'],
@@ -57,6 +62,8 @@ const SITE_CONFIGS: Record<string, SiteConfig> = {
 };
 
 function detectSite(url: string): string | null {
+    // Check more specific domains first
+    if (url.includes('learningenglish')) return 'learningenglish';
     for (const domain of Object.keys(SITE_CONFIGS)) {
         if (url.includes(domain)) return domain;
     }
@@ -108,6 +115,11 @@ async function extractArticle($: cheerio.CheerioAPI, url: string): Promise<strin
     // Remove noise elements from the selected container
     $mainElement.find('script, style, nav, footer, header, button, svg, aside, figure, img, video, iframe, noscript, .ad, .ads, #ad, #ads, .social-share, .social, .share, .metadata, .byline, .dateline, .timestamp, .published-date, .visually-hidden, .screen-reader-text, [aria-hidden="true"]').remove();
 
+    // For BBC Learning English, also remove episode sidebar and recommendations
+    if (site && site === 'learningenglish') {
+        $mainElement.find('[class*="episode"], [class*="related"], [class*="sidebar"], [class*="widget-episode"]').remove();
+    }
+
     const paragraphs: string[] = [];
     const seen = new Set<string>();
     const minLen = config?.minParagraphLength ?? 30;
@@ -116,6 +128,12 @@ async function extractArticle($: cheerio.CheerioAPI, url: string): Promise<strin
         const text = $(el).text().trim();
         if (text.length < minLen) return;
         if (seen.has(text)) return;
+
+        // Stop collecting at episode listing section
+        if (text.match(/^Episode \d{6}\s+\/\s+\d{2}\s+\w+\s+\d{4}/) ||
+            (text.includes('Episode') && text.includes('/') && seen.size > 10 && paragraphs.length > 5)) {
+            return;
+        }
 
         // Filter noise phrases
         if (config?.noiseFilters) {
