@@ -348,20 +348,24 @@ function playAudioConVLC(url: string, title: string) {
   }
 
   console.log(chalk.green(`\n▶️  Reproduciendo: ${chalk.bold(title)}`));
-  console.log(chalk.dim('   Para detener, selecciona "🔇 Detener audio" en el menú.\n'));
+  console.log(chalk.dim('   ⚠️  Sube el volumen! Si no oyes nada, prueba con auriculares.\n'));
 
-  const vlc = spawn('cvlc', [
-    '-I', 'dummy',
-    '--no-video',
-    '--volume', '512',
-    '--play-and-exit',
+  const vlc = spawn('ffplay', [
+    '-nodisp',
+    '-autoexit',
+    '-loglevel', 'quiet',
     url
   ], { stdio: 'ignore' });
 
   currentAudioProcess = vlc;
 
-  vlc.on('close', () => {
+  vlc.on('close', (code) => {
     currentAudioProcess = null;
+    if (code !== 0) {
+      console.log(chalk.red('\n❌ No se pudo reproducir el audio.'));
+      console.log(chalk.yellow('   Prueba abriendo la URL en el navegador:'));
+      console.log(chalk.cyan(`   ${url}\n`));
+    }
   });
 }
 
@@ -393,15 +397,15 @@ export async function quickLatestBBC(): Promise<void> {
     }
 
     const { action } = await inquirer.prompt([{
-      type: 'list',
+      type: 'select',
       name: 'action',
-      message: '¿Qué haces?',
+      message: '¿Qué quieres hacer?',
+      pageSize: 8,
       choices: [
         ...(currentAudioProcess
           ? [{ name: '🔇  Detener audio', value: 'stop' }]
-          : [{ name: '▶️  Reproducir audio (VLC)', value: 'listen' }]),
-        { name: '📖  Ver transcripción', value: 'transcript' },
-        { name: '📚  Extraer vocabulario con IA', value: 'vocab' },
+          : [{ name: '▶️  Reproducir (se escucha por los altavoces)', value: 'listen' }]),
+        { name: '📖  Transcripción + vocabulario', value: 'transcript' },
         { name: '↩️  Salir', value: 'back' }
       ]
     }]);
@@ -412,7 +416,6 @@ export async function quickLatestBBC(): Promise<void> {
       stopAudioVLC();
     } else if (action === 'transcript') {
       await showTranscriptFlow(ep);
-    } else if (action === 'vocab') {
       await extractVocabularyAIFlow(ep.description);
     } else if (action === 'back') {
       stopAudioVLC();
