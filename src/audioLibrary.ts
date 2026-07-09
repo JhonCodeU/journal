@@ -340,12 +340,14 @@ async function extractVocabularyAIFlow(text: string) {
 }
 
 let currentAudioProcess: ChildProcess | null = null;
+let audioPaused = false;
 
 function playAudioConVLC(url: string, title: string) {
   if (currentAudioProcess) {
     currentAudioProcess.kill();
     currentAudioProcess = null;
   }
+  audioPaused = false;
 
   console.log(chalk.green(`\n▶️  Reproduciendo: ${chalk.bold(title)}`));
   console.log(chalk.dim('   ⚠️  Sube el volumen! Si no oyes nada, prueba con auriculares.\n'));
@@ -361,7 +363,7 @@ function playAudioConVLC(url: string, title: string) {
 
   vlc.on('close', (code) => {
     currentAudioProcess = null;
-    if (code !== 0) {
+    if (code !== null && code !== 0) {
       console.log(chalk.red('\n❌ No se pudo reproducir el audio.'));
       console.log(chalk.yellow('   Prueba abriendo la URL en el navegador:'));
       console.log(chalk.cyan(`   ${url}\n`));
@@ -369,10 +371,32 @@ function playAudioConVLC(url: string, title: string) {
   });
 }
 
+function togglePauseAudio() {
+  if (!currentAudioProcess || !currentAudioProcess.pid) {
+    console.log(chalk.yellow('  No hay audio reproduciéndose.\n'));
+    return;
+  }
+
+  try {
+    if (audioPaused) {
+      process.kill(currentAudioProcess.pid, 'SIGCONT');
+      audioPaused = false;
+      console.log(chalk.green('  ▶️  Reanudado.\n'));
+    } else {
+      process.kill(currentAudioProcess.pid, 'SIGSTOP');
+      audioPaused = true;
+      console.log(chalk.yellow('  ⏸️  Pausado.\n'));
+    }
+  } catch {
+    console.log(chalk.red('  Error al pausar/reanudar.\n'));
+  }
+}
+
 function stopAudioVLC() {
   if (currentAudioProcess) {
     currentAudioProcess.kill();
     currentAudioProcess = null;
+    audioPaused = false;
     console.log(chalk.yellow('🔇 Audio detenido.\n'));
   }
 }
@@ -393,7 +417,9 @@ export async function quickLatestBBC(): Promise<void> {
     console.log(chalk.dim(ep.description.substring(0, 200) + '...\n'));
 
     if (currentAudioProcess) {
-      console.log(chalk.green('  🔊 Audio reproduciéndose...\n'));
+      console.log(audioPaused
+        ? chalk.yellow('  ⏸️  Audio pausado...\n')
+        : chalk.green('  🔊 Audio reproduciéndose...\n'));
     }
 
     const { action } = await inquirer.prompt([{
@@ -403,7 +429,10 @@ export async function quickLatestBBC(): Promise<void> {
       pageSize: 8,
       choices: [
         ...(currentAudioProcess
-          ? [{ name: '🔇  Detener audio', value: 'stop' }]
+          ? [
+              { name: audioPaused ? '▶️  Reanudar audio' : '⏸️  Pausar audio', value: 'pause' },
+              { name: '🔇  Detener audio', value: 'stop' }
+            ]
           : [{ name: '▶️  Reproducir (se escucha por los altavoces)', value: 'listen' }]),
         { name: '📖  Transcripción + vocabulario', value: 'transcript' },
         { name: '↩️  Salir', value: 'back' }
@@ -412,6 +441,8 @@ export async function quickLatestBBC(): Promise<void> {
 
     if (action === 'listen') {
       playAudioConVLC(ep.audioUrl, ep.title);
+    } else if (action === 'pause') {
+      togglePauseAudio();
     } else if (action === 'stop') {
       stopAudioVLC();
     } else if (action === 'transcript') {
