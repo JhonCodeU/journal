@@ -5,7 +5,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
 import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis, getBatchTranslations } from './aiManager.js';
-import { saveWord, getVocabulary } from './vocabularyManager.js';
+import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
@@ -171,12 +171,23 @@ function extractContextSentence(text: string, word: string): string {
 async function batchSavePageVocab(words: string[], pageText: string): Promise<void> {
     if (words.length === 0) return;
 
+    const wordsToShow = words.slice(0, 25);
+
+    console.log(chalk.blue('  Obteniendo traducciones...'));
+    const translations = await getBatchTranslations(wordsToShow);
+    const transMap = new Map(translations.map(t => [t.word.toLowerCase(), t.translation]));
+
     const { selectedWords } = await inquirer.prompt([{
         type: 'checkbox',
         name: 'selectedWords',
         message: `Palabras nuevas en esta página (${words.length}):`,
-        choices: words.slice(0, 25).map(w => ({ name: w, value: w, checked: true })),
+        choices: wordsToShow.map(w => ({
+            name: `${w} ${chalk.dim('→')} ${transMap.get(w.toLowerCase()) || chalk.red('?')}`,
+            value: w,
+            checked: true
+        })),
         loop: false,
+        pageSize: 15,
     }]);
 
     if (selectedWords.length === 0) {
@@ -184,14 +195,12 @@ async function batchSavePageVocab(words: string[], pageText: string): Promise<vo
         return;
     }
 
-    console.log(chalk.blue('  Traduciendo con IA...'));
-    const translations = await getBatchTranslations(selectedWords);
-
     let saved = 0;
-    for (const t of translations) {
-        if (t.translation) {
-            const context = extractContextSentence(pageText, t.word);
-            await saveWord({ word: t.word, translation: t.translation, context });
+    for (const word of selectedWords) {
+        const translation = transMap.get(word.toLowerCase());
+        if (translation) {
+            const context = extractContextSentence(pageText, word);
+            await saveWord({ word, translation, context });
             saved++;
         }
     }
@@ -356,30 +365,57 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             console.log(chalk.green('\n✅ Todas las palabras de esta página son conocidas.\n'));
         }
 
-        console.log(chalk.italic.gray('\n(Usa las flechas ↑/↓ para elegir y Enter para confirmar)\n'));
+        console.log(chalk.italic.gray('\n  Atajos: ') +
+            chalk.white('[n]ext ') + chalk.gray('| ') +
+            chalk.white('[p]rev ') + chalk.gray('| ') +
+            chalk.white('[s]peak ') + chalk.gray('| ') +
+            chalk.white('[l]ookup ') + chalk.gray('| ') +
+            chalk.white('[v]ocab ') + chalk.gray('| ') +
+            chalk.cyan('[m]ás IA ') + chalk.gray('| ') +
+            chalk.white('[x]it\n'));
 
-        const { action } = await inquirer.prompt([
-            {
-                type: 'select',
-                name: 'action',
-                message: 'Controles de lectura:',
+        const { raw } = await inquirer.prompt([{
+            type: 'input',
+            name: 'raw',
+            message: '>',
+            validate: (input: string) => {
+                const valid = ['n','p','s','l','v','m','x','1','2','3','4','5','6','7'];
+                return valid.includes(input.trim().toLowerCase()) ? true : 'Usa: n/p/s/l/v/m/x';
+            },
+            filter: (input: string) => input.trim().toLowerCase().slice(0, 1)
+        }]);
+
+        let action: string;
+
+        if (raw === 'm' || raw === '6') {
+            const { sub } = await inquirer.prompt([{
+                type: 'list',
+                name: 'sub',
+                message: 'Más opciones:',
                 choices: [
-                    { name: '➡️  Siguiente Página', value: 'next', disabled: currentIndex >= pages.length - 1 ? '(Última página)' : false },
-                    { name: '⬅️  Página Anterior', value: 'prev', disabled: currentIndex === 0 ? '(Primera página)' : false },
-                    { name: '🔊  Escuchar (Normal)', value: 'speak' },
-                    { name: '🐢  Escuchar Lento (para estudiar)', value: 'speak_slow' },
-                    { name: '🐇  Escuchar Rápido (práctica avanzada)', value: 'speak_fast' },
+                    { name: '🌐  Traducción Bilingüe (IA)', value: 'bilingual' },
+                    { name: '🧠  Analizar Vocabulario (IA)', value: 'analyze' },
+                    { name: '✨  Simplificar a A2 (IA)', value: 'simplify' },
+                    { name: '🤖  Explicar (IA)', value: 'explain' },
+                    new inquirer.Separator(),
+                    { name: '🐢  Escuchar Lento', value: 'speak_slow' },
+                    { name: '🐇  Escuchar Rápido', value: 'speak_fast' },
                     { name: '🔇  Detener Narración', value: 'stop' },
-                    { name: '📝  Guardar vocabulario de esta página', value: 'savePageVocab' },
-                    { name: '🔍  Buscar palabra', value: 'lookup' },
-                    { name: '🌐  Ver Traducción Bilingüe (IA)', value: 'bilingual' },
-                    { name: '🧠  Analizar Vocabulario y Expresiones (IA)', value: 'analyze' },
-                    { name: '✨  Simplificar a nivel A2 (IA)', value: 'simplify' },
-                    { name: '🤖  IA: Explicar esta parte', value: 'explain' },
-                    { name: '🚪  Cerrar', value: 'exit' }
+                    new inquirer.Separator(),
+                    { name: '↩️  Volver', value: 'back' }
                 ]
-            }
-        ]);
+            }]);
+            if (sub === 'back') continue;
+            action = sub;
+        } else {
+            const actions: Record<string, string> = {
+                '1': 'next', 'n': 'next', '2': 'prev', 'p': 'prev',
+                '3': 'speak', 's': 'speak', '4': 'lookup', 'l': 'lookup',
+                '5': 'savePageVocab', 'v': 'savePageVocab',
+                '7': 'exit', 'x': 'exit'
+            };
+            action = actions[raw] || 'next';
+        }
 
         // ── Auto-prompt on page leave ──
         if (action === 'next' || action === 'prev') {
@@ -432,17 +468,37 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                 message: '🔍 Palabra a buscar:',
             }]);
             if (word.trim()) {
-                const translations = await getBatchTranslations([word.trim()]);
+                const cleanWord = word.trim();
+                const translations = await getBatchTranslations([cleanWord]);
                 if (translations[0]?.translation) {
-                    console.log(chalk.green(`\n  ${word.trim()} → ${translations[0].translation}`));
-                    const context = extractContextSentence(pageText, word.trim());
+                    const translation = translations[0].translation;
+                    console.log(chalk.green(`\n  ${cleanWord} → ${translation}`));
+                    const context = extractContextSentence(pageText, cleanWord);
                     if (context) {
                         console.log(chalk.dim(`  Contexto: "${context}"`));
                     }
+
+                    const { markAction } = await inquirer.prompt([{
+                        type: 'select',
+                        name: 'markAction',
+                        message: '¿Qué quieres hacer?',
+                        choices: [
+                            { name: '✅ Marcar como conocida (ya no saldrá amarilla)', value: 'mark' },
+                            { name: '💾 Guardar en vocabulario con ejemplo', value: 'save' },
+                            { name: '↩️  Volver a la lectura', value: 'back' }
+                        ]
+                    }]);
+
+                    if (markAction === 'mark') {
+                        await markWordAsKnown(cleanWord, translation, context);
+                    } else if (markAction === 'save') {
+                        await saveWord({ word: cleanWord, translation, context });
+                        addXP(10);
+                    }
                 } else {
                     console.log(chalk.yellow('\n  No se pudo traducir.\n'));
+                    await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Enter para continuar...' }]);
                 }
-                await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Enter para continuar...' }]);
             }
         } else if (action === 'savePageVocab') {
             await batchSavePageVocab(uncommon, pageText);

@@ -89,6 +89,26 @@ export async function saveWord({ word, translation, context }: { word: string, t
 }
 // ... (rest of the file)
 
+export async function markWordAsKnown(word: string, translation: string, context?: string): Promise<void> {
+  const vocabulary = getVocabulary();
+  if (vocabulary.some(v => v.word.toLowerCase() === word.toLowerCase())) {
+    console.log(chalk.yellow(`  "${word}" ya está en tu vocabulario.`));
+    return;
+  }
+
+  const newWord: VocabularyItem = {
+    word,
+    translation,
+    strength: 1,
+    lastReviewed: new Date(0).toISOString(),
+    example: null,
+    context,
+  };
+  vocabulary.push(newWord);
+  saveVocabulary(vocabulary);
+  console.log(chalk.green(`  ✔ "${word}" marcada como conocida.`));
+}
+
 export async function getWordDetails(word: string): Promise<void> {
   try {
     console.log(chalk.blue(`\nFetching details for "${word}"...`));

@@ -54,5 +54,205 @@
     "strength": 1,
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "The reporter gave the witness an interview."
+  },
+  {
+    "word": "CHAPTER",
+    "translation": "CAPÍTULO",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Detective novel writers try to keep up the suspense until the last chapter.",
+    "context": "M\nCHAPTER ONE\nTHE BOY WHO LIVED\nr."
+  },
+  {
+    "word": "Dudley",
+    "translation": "DUDELY",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Dudley was surprised to find a snake in his bedroom.",
+    "context": "The Dursleys had a\nsmall son called Dudley and in their opinion there was no finer boy anywhere."
+  },
+  {
+    "word": "Dursleys",
+    "translation": "DURSELYS",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The Weasley family was very different from the Dursleys.",
+    "context": "The Dursleys had a\nsmall son called Dudley and in their opinion there was no finer boy anywhere."
+  },
+  {
+    "word": "Grunnings",
+    "translation": "GRUNNINGS",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The Grunnings boots provide great protection and comfort on my hiking trips.",
+    "context": "Dursley was the director of a firm called Grunnings, which made drills."
+  },
+  {
+    "word": "LIVED",
+    "translation": "HABÍA VIVIDO",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He's not expected to live for more than a few months.",
+    "context": "M\nCHAPTER ONE\nTHE BOY WHO LIVED\nr."
+  },
+  {
+    "word": "Mrs",
+    "translation": "MADRESELA",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Mrs Smith greeted all her students with a warm smile.",
+    "context": "and Mrs."
+  },
+  {
+    "word": "Potter",
+    "translation": "POTTER",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Wanted to see Potter's new magical tricks at the wizarding show.",
+    "context": "Potter was Mrs."
+  },
+  {
+    "word": "Potters",
+    "translation": "POTTERS",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The local potters held an annual clay sculpture exhibition.",
+    "context": "They didn’t think\nthey could bear it if anyone found out about the Potters."
+  },
+  {
+    "word": "Privet",
+    "translation": "PRIVET",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Privet! How can I help you today?",
+    "context": "Dursley, of number four, Privet Drive, were proud to say\nthat they were perfectly normal, thank you very much."
+  },
+  {
+    "word": "although",
+    "translation": "aunque",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Although it was very muddy, the football game went on.",
+    "context": "He was a big, beefy man with hardly any neck, although he did have a very\nlarge mustache."
+  },
+  {
+    "word": "amount",
+    "translation": "cantidad",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The amount of atmospheric pollution threatens a health crisis.",
+    "context": "Dursley was thin and blonde and had nearly twice the\nusual amount of neck, which came in very useful as she spent so muc"
+  },
+  {
+    "word": "anyone",
+    "translation": "algún",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Almost anyone can change a light bulb.",
+    "context": "They didn’t think\nthey could bear it if anyone found out about the Potters."
+  },
+  {
+    "word": "anywhere",
+    "translation": "dondequiera que",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I don't know where I left my keys. They could be anywhere.",
+    "context": "The Dursleys had a\nsmall son called Dudley and in their opinion there was no finer boy anywhere."
+  },
+  {
+    "word": "arrived",
+    "translation": "llegó",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He arrived home for two days.",
+    "context": "The Dursleys\nshuddered to think what the neighbors would say if the Potters arrived in the\nstreet."
+  },
+  {
+    "word": "beefy",
+    "translation": "gordo",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The barman was a big, beefy guy with his sleeves rolled up and tattoos on his arms.",
+    "context": "He was a big, beefy man with hardly any neck, although he did have a very\nlarge mustache."
+  },
+  {
+    "word": "blonde",
+    "translation": "rubio",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "blond ale",
+    "context": "Dursley was thin and blonde and had nearly twice the\nusual amount of neck, which came in very useful as she spent so muc"
+  },
+  {
+    "word": "called",
+    "translation": "se llamaba",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He felt called to help the old man.",
+    "context": "Dursley was the director of a firm called Grunnings, which made drills."
+  },
+  {
+    "word": "child",
+    "translation": "nene",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Go easy on him: he is but a child.",
+    "context": "This boy was another good reason for keeping the\nPotters away; they didn’t want Dudley mixing with a child like that."
+  },
+  {
+    "word": "craning",
+    "translation": "reclinando",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The crane workers were craning their necks to get a better view of the construction site.",
+    "context": "Dursley was thin and blonde and had nearly twice the\nusual amount of neck, which came in very useful as she spent so muc"
+  },
+  {
+    "word": "didn",
+    "translation": "no",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Didn't I tell you to bring your homework?",
+    "context": "They were the\nlast people you’d expect to be involved in anything strange or mysterious,\nbecause they just didn’t hold w"
+  },
+  {
+    "word": "director",
+    "translation": "director",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The director of the film gave an insightful talk at the award ceremony.",
+    "context": "Dursley was the director of a firm called Grunnings, which made drills."
+  },
+  {
+    "word": "discover",
+    "translation": "descubrir",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Turning the corner, I discovered a lovely little shop. I discovered that they sold widgets.",
+    "context": "The Dursleys had everything they wanted, but they also had a secret, and\ntheir greatest fear was that somebody would dis"
+  },
+  {
+    "word": "drills",
+    "translation": "trucos",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Wear safety glasses when operating an electric drill.",
+    "context": "Dursley was the director of a firm called Grunnings, which made drills."
+  },
+  {
+    "word": "expect",
+    "translation": "esperar",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He never expected to be discovered.",
+    "context": "They were the\nlast people you’d expect to be involved in anything strange or mysterious,\nbecause they just didn’t hold w"
+  },
+  {
+    "word": "shuddered",
+    "translation": "tembló",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "She shuddered at the sight of the snake.",
+    "context": "The Dursleys\nshuddered to think what the neighbors would say if the Potters arrived in the\nstreet."
   }
 ]
