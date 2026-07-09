@@ -31,8 +31,9 @@ const SITE_CONFIGS: Record<string, SiteConfig> = {
         minParagraphLength: 40,
     },
     'learningenglish': {
-        selectors: ['.widget-podcast', '.main-content', '.content', 'article'],
-        noiseFilters: ['Episode 260', 'Practise your reading skills', 'Learn more about', 'HomeHome', 'English Change Language'],
+        selectors: ['.widget-richtext', '.widget-bbcle-featuresubheader', '.widget-heading', '.content-no-sidebar', 'article'],
+        noiseFilters: ['Download a free', 'Try our free', 'Find an A-Z list', 'Learn more about', 'Practise your reading skills',
+                       'Rude emails', 'screen time', 'ultra-processed', 'Episode 260', 'Business jargon podcast'],
         minParagraphLength: 30,
     },
     'nytimes.com': {
