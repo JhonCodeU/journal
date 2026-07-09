@@ -10,7 +10,7 @@
     "word": "excelling",
     "translation": "sobresaliente",
     "strength": 1,
-    "lastReviewed": "2026-04-27T16:58:46.589Z",
+    "lastReviewed": "2026-07-09T21:30:09.594Z",
     "example": null
   },
   {
@@ -24,42 +24,42 @@
     "word": "rally",
     "translation": "reunion",
     "strength": 1,
-    "lastReviewed": "2026-04-27T16:58:58.434Z",
+    "lastReviewed": "2026-07-09T21:30:12.939Z",
     "example": "a campaign rally"
   },
   {
     "word": "recalled",
     "translation": "recordado",
     "strength": 1,
-    "lastReviewed": "2026-04-27T16:59:04.821Z",
+    "lastReviewed": "2026-07-09T21:30:19.589Z",
     "example": "He was recalled to service after his retirement."
   },
   {
     "word": "wounded",
     "translation": "herido",
     "strength": 1,
-    "lastReviewed": "2026-04-27T16:59:10.656Z",
+    "lastReviewed": "2026-07-09T21:30:23.441Z",
     "example": "The police officer wounded the suspect during the fight that ensued."
   },
   {
     "word": "involved",
     "translation": "involucrado",
-    "strength": 1,
-    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "strength": 2,
+    "lastReviewed": "2026-07-09T21:30:28.839Z",
     "example": "to involve in darkness or obscurity"
   },
   {
     "word": "interview",
     "translation": "entrevista",
-    "strength": 1,
-    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "strength": 2,
+    "lastReviewed": "2026-07-09T21:30:32.159Z",
     "example": "The reporter gave the witness an interview."
   },
   {
     "word": "CHAPTER",
     "translation": "CAPÍTULO",
     "strength": 1,
-    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "lastReviewed": "2026-07-09T21:30:35.222Z",
     "example": "Detective novel writers try to keep up the suspense until the last chapter.",
     "context": "M\nCHAPTER ONE\nTHE BOY WHO LIVED\nr."
   },

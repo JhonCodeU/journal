@@ -2,11 +2,13 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { spawn, ChildProcess } from 'child_process';
 import { saveEntry } from './journal.js';
-import { saveWord } from './vocabularyManager.js';
-import { getPodcastSummary, getPodcastVocab } from './aiManager.js';
+import { saveWord, getVocabulary } from './vocabularyManager.js';
+import { getPodcastSummary, getPodcastVocab, getBatchTranslations } from './aiManager.js';
 import { fetchArticle } from './webReader.js';
 import { commonWords } from './vocabulary.js';
+import { addXP } from './statsManager.js';
 
 const BBC_URL = 'https://podcasts.files.bbci.co.uk/p02pc9tn.rss';
 
@@ -217,7 +219,7 @@ async function studyEpisode(episode: Episode, sourceName: string) {
 
   switch (action) {
     case 'listen':
-      console.log(chalk.green(`\nOpening audio link: ${episode.audioUrl}`));
+      playAudioConVLC(episode.audioUrl, episode.title);
       break;
     case 'transcript':
       await showTranscriptFlow(episode);
@@ -337,6 +339,40 @@ async function extractVocabularyAIFlow(text: string) {
   console.log(chalk.green(`\n✔ ${selectedIndices.length} palabras guardadas al vocabulario.\n`));
 }
 
+let currentAudioProcess: ChildProcess | null = null;
+
+function playAudioConVLC(url: string, title: string) {
+  if (currentAudioProcess) {
+    currentAudioProcess.kill();
+    currentAudioProcess = null;
+  }
+
+  console.log(chalk.green(`\n▶️  Reproduciendo: ${chalk.bold(title)}`));
+  console.log(chalk.dim('   Para detener, selecciona "🔇 Detener audio" en el menú.\n'));
+
+  const vlc = spawn('cvlc', [
+    '-I', 'dummy',
+    '--no-video',
+    '--volume', '512',
+    '--play-and-exit',
+    url
+  ], { stdio: 'ignore' });
+
+  currentAudioProcess = vlc;
+
+  vlc.on('close', () => {
+    currentAudioProcess = null;
+  });
+}
+
+function stopAudioVLC() {
+  if (currentAudioProcess) {
+    currentAudioProcess.kill();
+    currentAudioProcess = null;
+    console.log(chalk.yellow('🔇 Audio detenido.\n'));
+  }
+}
+
 export async function quickLatestBBC(): Promise<void> {
   console.log(chalk.blue('Cargando último episodio...'));
   const episodes = await fetchFeed(BBC_URL, 'bbc');
@@ -348,27 +384,39 @@ export async function quickLatestBBC(): Promise<void> {
 
   const ep = episodes[0];
 
-  console.log(chalk.yellow.bold(`\n🎧 ${ep.title}`));
-  console.log(chalk.dim(ep.description.substring(0, 200) + '...\n'));
-  console.log(chalk.cyan(`🔊 ${ep.audioUrl}\n`));
+  while (true) {
+    console.log(chalk.yellow.bold(`\n🎧 ${ep.title}`));
+    console.log(chalk.dim(ep.description.substring(0, 200) + '...\n'));
 
-  const { action } = await inquirer.prompt([{
-    type: 'list',
-    name: 'action',
-    message: '¿Qué haces?',
-    choices: [
-      { name: '▶️  Abrir audio para escuchar', value: 'listen' },
-      { name: '📖  Ver transcripción', value: 'transcript' },
-      { name: '📚  Extraer vocabulario con IA', value: 'vocab' },
-      { name: '↩️  Volver', value: 'back' }
-    ]
-  }]);
+    if (currentAudioProcess) {
+      console.log(chalk.green('  🔊 Audio reproduciéndose...\n'));
+    }
 
-  if (action === 'listen') {
-    console.log(chalk.green(`\nAudio listo: ${ep.audioUrl}\n`));
-  } else if (action === 'transcript') {
-    await showTranscriptFlow(ep);
-  } else if (action === 'vocab') {
-    await extractVocabularyAIFlow(ep.description);
+    const { action } = await inquirer.prompt([{
+      type: 'list',
+      name: 'action',
+      message: '¿Qué haces?',
+      choices: [
+        ...(currentAudioProcess
+          ? [{ name: '🔇  Detener audio', value: 'stop' }]
+          : [{ name: '▶️  Reproducir audio (VLC)', value: 'listen' }]),
+        { name: '📖  Ver transcripción', value: 'transcript' },
+        { name: '📚  Extraer vocabulario con IA', value: 'vocab' },
+        { name: '↩️  Salir', value: 'back' }
+      ]
+    }]);
+
+    if (action === 'listen') {
+      playAudioConVLC(ep.audioUrl, ep.title);
+    } else if (action === 'stop') {
+      stopAudioVLC();
+    } else if (action === 'transcript') {
+      await showTranscriptFlow(ep);
+    } else if (action === 'vocab') {
+      await extractVocabularyAIFlow(ep.description);
+    } else if (action === 'back') {
+      stopAudioVLC();
+      break;
+    }
   }
 }
