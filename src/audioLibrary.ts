@@ -45,6 +45,18 @@ const SOURCES: AudioSource[] = [
     type: 'bbc'
   },
   {
+    name: "Bob's Short English Lessons",
+    url: 'https://anchor.fm/s/1079b9418/podcast/rss',
+    description: 'Short 4-min lessons teaching curious English phrases. Perfect for quick learning.',
+    type: 'generic'
+  },
+  {
+    name: 'Learn English with Bob the Canadian',
+    url: 'https://anchor.fm/s/1079b7dd4/podcast/rss',
+    description: 'Longer English lessons from Bob the Canadian with real-life topics.',
+    type: 'generic'
+  },
+  {
     name: 'VOA Learning English (General)',
     url: 'https://learningenglish.voanews.com/podcast/?count=20&zoneId=3521',
     description: 'News and features at a slower pace with simple vocabulary.',
