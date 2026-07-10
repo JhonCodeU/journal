@@ -3,20 +3,21 @@ import chalk from 'chalk';
 
 const OLLAMA_URL = "http://localhost:11434/api";
 const MODEL_NAME = "qwen2.5:3b";
+const LYRICS_MODEL = "llama3";
 
 export function checkAPIKey(): boolean {
     return true; 
 }
 
-async function callOllama(prompt: string, system: string = "") {
+async function callOllama(prompt: string, system: string = "", model?: string) {
     try {
         const response = await axios.post(`${OLLAMA_URL}/generate`, {
-            model: MODEL_NAME,
+            model: model || MODEL_NAME,
             prompt: prompt,
             system: system,
             stream: false,
             options: {
-                temperature: 0.7
+                temperature: 0.3
             }
         });
         return response.data.response;
@@ -62,23 +63,30 @@ export async function getSongContext(title: string, artist: string, lyricsSample
 }
 
 export async function getBilingualLyrics(lyrics: string): Promise<string> {
-    const prompt = `Traduce estas líneas de canción INGLÉS → ESPAÑOL.
+    const prompt = `Traduce esta canción al español. 
 
-IMPORTANTE:
-- NO traduzcas palabra por palabra. Traduce el SIGNIFICADO de cada línea completa.
-- Usa español natural, como lo diría un hablante nativo.
-- Si una frase hecha o idiomática no tiene equivalente directo, explica su significado en español en esa misma línea.
+CADA línea en inglés debe ir seguida de su traducción con "ES:".
 
-Ejemplo correcto:
-  LOVING CAN HURT → "Amar puede doler" (NO "amor puede dañar")
-  BUT IT'S THE ONLY THING THAT I KNOW → "Pero es lo único que conozco" (NO "es lo solo que seguiré sabiendo")
+Formato correcto (ejemplo):
+  Lovin' can hurt
+  ES: Amar puede doler
+  But it's the only thing that I know
+  ES: Pero es lo único que conozco
 
-Formato de respuesta: SOLO las líneas traducidas, cada línea original seguida de "ES: traducción".
+NO hagas esto:
+  ES: Amar puede doler  ← falta la línea en inglés arriba
+  So tú puedes quedarme ← esto no es inglés ni español
+
+Instrucciones:
+- Para cada línea de la canción, escribe la línea original y debajo "ES: traducción"
+- Traduce el significado completo, no palabra por palabra
+- Los [section headers] déjalos igual
+- Si ves "ES:" en la entrada NO la traduzcas otra vez
 
 Canciones:
 ${lyrics}`;
 
-    return await callOllama(prompt, "Eres un traductor profesional de canciones. Traduces el significado completo de cada línea, nunca palabra por palabra.");
+    return await callOllama(prompt, "Traductor de canciones inglés-español. Cada línea original seguida de ES: traducción.", LYRICS_MODEL);
 }
 
 export async function getPodcastSummary(title: string, description: string): Promise<string> {
