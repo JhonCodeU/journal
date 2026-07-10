@@ -289,5 +289,40 @@
     "strength": 1,
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "I signed up for the newsletter to stay updated on the latest tech trends."
+  },
+  {
+    "word": "ban",
+    "translation": "prohibición",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Bans is common and ordinary amongst the Feudists, and signifies a proclamation, or any public notice."
+  },
+  {
+    "word": "revenue",
+    "translation": "ingreso",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The company's revenue increased by 10% this quarter."
+  },
+  {
+    "word": "detour",
+    "translation": "desvío",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "She took a detour to visit an old friend on her way home."
+  },
+  {
+    "word": "booming",
+    "translation": "en desarrollo exponencial",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I can hear the organ slowly booming from the chapel."
+  },
+  {
+    "word": "lofty",
+    "translation": "altivo",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "a lofty goal"
   }
 ]

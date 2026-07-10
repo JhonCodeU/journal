@@ -4,7 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
-import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis, getBatchTranslations } from './aiManager.js';
+import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis, getBatchTranslations, getPodcastVocab } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
@@ -201,6 +201,37 @@ async function batchSavePageVocab(words: string[], pageText: string): Promise<vo
     }
 }
 
+async function extractPageVocabAI(pageText: string): Promise<void> {
+    console.log(chalk.blue('\nLa IA está seleccionando las palabras más útiles...'));
+    const aiWords = await getPodcastVocab(pageText.substring(0, 3000));
+
+    if (aiWords.length === 0) {
+        console.log(chalk.red('No se pudieron extraer palabras con IA.\n'));
+        return;
+    }
+
+    const { selectedIndices } = await inquirer.prompt([{
+        type: 'checkbox',
+        name: 'selectedIndices',
+        message: 'Selecciona las que quieres guardar:',
+        choices: aiWords.map((item, index) => ({
+            name: `${chalk.yellow(item.word)}: ${item.translation}`,
+            value: index
+        })),
+        default: aiWords.map((_, i) => i)
+    }]);
+
+    let saved = 0;
+    for (const index of selectedIndices) {
+        const { word, translation } = aiWords[index];
+        const context = extractContextSentence(pageText, word);
+        await saveWord({ word, translation, context });
+        saved++;
+    }
+    console.log(chalk.green(`\n✔ ${saved} palabras guardadas.\n`));
+    if (saved > 0) addXP(saved * 10);
+}
+
 // --- PDF READER SECTION ---
 
 export async function openPDFHub() {
@@ -386,6 +417,7 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
 
         if (raw === 'm' || raw === '6') {
             const moreChoices: any[] = [
+                { name: '📚  IA: Extraer vocabulario útil', value: 'aiVocab' },
                 { name: '🌐  Traducción Bilingüe (IA)', value: 'bilingual' },
                 { name: '🧠  Analizar Vocabulario (IA)', value: 'analyze' },
                 { name: '✨  Simplificar a A2 (IA)', value: 'simplify' },
@@ -518,6 +550,8 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             }
         } else if (action === 'savePageVocab') {
             await batchSavePageVocab(uncommon, pageText);
+        } else if (action === 'aiVocab') {
+            await extractPageVocabAI(pageText);
         } else if (action === 'bilingual') {
             console.log(chalk.blue('\nTraduciendo página con IA...'));
             const bilingual = await getBilingualPage(pageText);
