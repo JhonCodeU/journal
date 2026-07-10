@@ -337,15 +337,27 @@ async function showTranscriptFlow(episode: Episode) {
             .replace(/&quot;/g, '"')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
+            .replace(/Support the show[.\s]*/gi, '')
+            .trim()
+            // Clean up double spaces
+            .replace(/^,?\s*/, '')
+            .replace(/\s{2,}/g, ' ')
             // Normalize: ensure space after periods that are missing it
             .replace(/\.([A-Z])/g, '. $1')
             .replace(/\?([A-Z])/g, '? $1')
             .replace(/!([A-Z])/g, '! $1')
-            // Split into paragraphs at sentence boundaries
-            .replace(/([.!?])\s{1,3}([A-Z])/g, '$1\n\n$2')
-            .replace(/([.!?])\s{1,3}([A-Z])/g, '$1\n\n$2')
-            .replace(/Support the show/i, '')
-            .trim();
+            // Split into sentences, filter out promotional ones
+            .split(/(?<=[.!?])\s+/)
+            .filter((s: string) => {
+                const upper = s.toUpperCase();
+                return !upper.includes('WANT FREE ENGLISH')
+                    && !upper.includes('GO TO YOUTUBE')
+                    && !upper.includes('BOB THE CANADIAN')
+                    && !upper.includes('PATREON')
+                    && !upper.includes('SUPPORTING ME')
+                    && !upper.includes('IF YOU ENJOY THESE LESSONS');
+            })
+            .join('\n\n');
     }
 
     console.log(chalk.magenta.bold(`\n--- TRANSCRIPT: ${episode.title} ---`));
