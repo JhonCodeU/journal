@@ -324,5 +324,117 @@
     "strength": 1,
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "a lofty goal"
+  },
+  {
+    "word": "British",
+    "translation": "británico",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The British restaurant serves traditional British cuisine.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "Gallardos",
+    "translation": "Gallardos",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "There was an old Gallardo family known for their craftsmanship in leather goods.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "Los",
+    "translation": "los",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Los dogs are barking loudly.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "Spain",
+    "translation": "España",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Spain is known for its tapas and flamenco dancing.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "Wildfire",
+    "translation": "incendio salvaje",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "A wildfire raged through the forest, leaving behind charred trees and smoldering earth.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "broke",
+    "translation": "se rompió",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "If the vase falls to the floor, it might break.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "dead",
+    "translation": "muerto(a)",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Have respect for the dead.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "least",
+    "translation": "menos",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "It was the least surprising thing.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "leaves",
+    "translation": "hojas",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "gold leaf",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "local",
+    "translation": "local",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "It's easy to tell the locals from the tourists.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "missing",
+    "translation": "desaparecido",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I missed the target.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "official",
+    "translation": "oficial",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "David Barnes was the official charged with the running of the sports club.",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "southern",
+    "translation": "surco",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The southern climate.",
+    "context": "Wildfire in southern Spain leaves at least 12 dead and 23 missing"
+  },
+  {
+    "word": "victims",
+    "translation": "víctimas",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "the youngest victims of the brutal war",
+    "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
   }
 ]

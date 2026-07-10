@@ -6,6 +6,7 @@ import { commonWords } from './vocabulary.js';
 import { getBatchTranslations, getPodcastVocab } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
+import { fetchArticle } from './webReader.js';
 
 interface NewsCategory {
   name: string;
@@ -114,6 +115,16 @@ function extractContext(text: string, word: string): string {
 
 async function showArticleContent(item: NewsItem) {
   let content = `${item.title}\n\n${item.description}`;
+
+  // Try to fetch the full article
+  console.log(chalk.blue('\nCargando artículo completo...'));
+  const article = await fetchArticle(item.link);
+  if (article && article.content.length > 200) {
+    content = `${article.title}\n\n${article.content}`;
+  } else {
+    console.log(chalk.yellow('  (mostrando resumen — no se pudo obtener el artículo completo)\n'));
+    await inquirer.prompt([{ type: 'input', name: '_', message: 'Enter...' }]);
+  }
 
   while (true) {
     console.clear();
