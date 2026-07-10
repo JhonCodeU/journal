@@ -62,22 +62,23 @@ export async function getSongContext(title: string, artist: string, lyricsSample
 }
 
 export async function getBilingualLyrics(lyrics: string): Promise<string> {
-    const prompt = `Translate the following song lyrics into Spanish. 
-    IMPORTANT: 
-    - Translate EVERY single line. Do not skip, omit, or summarize any part of the song.
-    - Use natural, idiomatic Spanish. Song lyrics are often informal; the translation should sound like something a person would actually say or sing in Spanish.
-    - Avoid overly literal or formal translations. For example, "miss me" should be "me extrañas" (not "nostalgia de mí"), and "business" should be "asuntos" or "cosas" (not "empresa") when used in a personal context.
-    - Capture the tone and emotion of the song.
-    - Maintain all section headers like [Verse 1], [Chorus], etc., and do not translate them.
-    
-    Return the result in an interleaved format: 
-    - The original English line.
-    - The Spanish translation on the next line, prefixed with 'ES: '.
-    
-    Lyrics:
-    ${lyrics}`;
-    
-    return await callOllama(prompt, "You are a professional translator and music expert with a deep understanding of English idioms, slang, and cultural context. Your goal is to provide a natural, idiomatic Spanish translation that captures the original meaning and tone of the lyrics. Provide ONLY the full interleaved lyrics. Do not add any introductory or concluding text.");
+    const prompt = `Traduce estas líneas de canción INGLÉS → ESPAÑOL.
+
+IMPORTANTE:
+- NO traduzcas palabra por palabra. Traduce el SIGNIFICADO de cada línea completa.
+- Usa español natural, como lo diría un hablante nativo.
+- Si una frase hecha o idiomática no tiene equivalente directo, explica su significado en español en esa misma línea.
+
+Ejemplo correcto:
+  LOVING CAN HURT → "Amar puede doler" (NO "amor puede dañar")
+  BUT IT'S THE ONLY THING THAT I KNOW → "Pero es lo único que conozco" (NO "es lo solo que seguiré sabiendo")
+
+Formato de respuesta: SOLO las líneas traducidas, cada línea original seguida de "ES: traducción".
+
+Canciones:
+${lyrics}`;
+
+    return await callOllama(prompt, "Eres un traductor profesional de canciones. Traduces el significado completo de cada línea, nunca palabra por palabra.");
 }
 
 export async function getPodcastSummary(title: string, description: string): Promise<string> {
