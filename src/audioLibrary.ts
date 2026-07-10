@@ -3,12 +3,35 @@ import * as cheerio from 'cheerio';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { spawn, ChildProcess } from 'child_process';
+import fs from 'fs';
 import { saveEntry } from './journal.js';
 import { saveWord, getVocabulary } from './vocabularyManager.js';
 import { getPodcastSummary, getPodcastVocab, getBatchTranslations } from './aiManager.js';
 import { fetchArticle } from './webReader.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
+
+const LISTENED_FILE = './listened_episodes.json';
+
+function getListenedEpisodes(): Set<string> {
+  try {
+    if (!fs.existsSync(LISTENED_FILE)) return new Set();
+    const data = JSON.parse(fs.readFileSync(LISTENED_FILE, 'utf8'));
+    return new Set(data);
+  } catch {
+    return new Set();
+  }
+}
+
+function markAsListened(episodeId: string) {
+  const listened = getListenedEpisodes();
+  listened.add(episodeId);
+  fs.writeFileSync(LISTENED_FILE, JSON.stringify([...listened], null, 2));
+}
+
+function episodeId(source: string, title: string): string {
+  return `${source}::${title}`;
+}
 
 const BBC_URL = 'https://podcasts.files.bbci.co.uk/p02pc9tn.rss';
 
@@ -191,12 +214,19 @@ export async function interactiveAudioLibrarySession(): Promise<void> {
     return interactiveAudioLibrarySession();
   }
 
+  const listened = getListenedEpisodes();
+
   const { selectedEpisode } = await inquirer.prompt([{
     type: 'select',
     name: 'selectedEpisode',
     message: 'Select an episode:',
     choices: [
-      ...episodes.map(ep => ({ name: ep.title, value: ep })),
+      ...episodes.map(ep => ({
+        name: listened.has(episodeId(finalSource.name, ep.title))
+          ? chalk.dim.green(`✔ ${ep.title}`)
+          : ep.title,
+        value: ep
+      })),
       { name: 'Back to sources', value: 'back' }
     ]
   }]);
@@ -225,6 +255,7 @@ async function studyEpisode(episode: Episode, sourceName: string) {
       { name: '📝 Add to Journal (Log listening)', value: 'journal' },
       { name: '📚 AI Vocabulary Extraction', value: 'vocab-ai' },
       { name: '✨ AI Summary (Spanish)', value: 'summary' },
+      { name: '✅ Mark as listened', value: 'listened' },
       { name: '🔙 Back to episodes', value: 'back' }
     ]
   }]);
@@ -274,6 +305,10 @@ async function studyEpisode(episode: Episode, sourceName: string) {
       console.log(chalk.green('\n📝 RESUMEN DEL EPISODIO:'));
       console.log(chalk.white(summary));
       console.log(chalk.green('------------------------\n'));
+      break;
+    case 'listened':
+      markAsListened(episodeId(sourceName, episode.title));
+      console.log(chalk.green(`  ✔ "${episode.title}" marcado como escuchado.\n`));
       break;
     case 'back':
       return; 
@@ -489,6 +524,7 @@ export async function quickLatestBBC(): Promise<void> {
             ]
           : [{ name: '▶️  Reproducir (se escucha por los altavoces)', value: 'listen' }]),
         { name: '📖  Transcripción + vocabulario', value: 'transcript' },
+        { name: '✅  Marcar como escuchado', value: 'listened' },
         { name: '↩️  Salir', value: 'back' }
       ]
     }]);
@@ -501,6 +537,9 @@ export async function quickLatestBBC(): Promise<void> {
       stopAudioVLC();
     } else if (action === 'transcript') {
       await showTranscriptFlow(ep);
+    } else if (action === 'listened') {
+      markAsListened(episodeId('BBC 6 Minute English', ep.title));
+      console.log(chalk.green(`  ✔ Marcado como escuchado.\n`));
     } else if (action === 'back') {
       stopAudioVLC();
       break;
