@@ -232,6 +232,30 @@ async function studyEpisode(episode: Episode, sourceName: string) {
   switch (action) {
     case 'listen':
       playAudioConVLC(episode.audioUrl, episode.title);
+      // Enter audio controls loop
+      while (currentAudioProcess) {
+        const { audioAction } = await inquirer.prompt([{
+          type: 'select',
+          name: 'audioAction',
+          message: audioPaused ? '⏸️  Pausado' : '🔊 Reproduciendo',
+          choices: [
+            { name: audioPaused ? '▶️  Reanudar audio' : '⏸️  Pausar audio', value: 'pause' },
+            { name: '🔇  Detener audio', value: 'stop' },
+            { name: '📖  Ver transcripción', value: 'transcript' },
+            { name: '↩️  Volver', value: 'back' }
+          ]
+        }]);
+
+        if (audioAction === 'pause') {
+          togglePauseAudio();
+        } else if (audioAction === 'stop') {
+          stopAudioVLC();
+        } else if (audioAction === 'transcript') {
+          await showTranscriptFlow(episode);
+        } else {
+          break;
+        }
+      }
       break;
     case 'transcript':
       await showTranscriptFlow(episode);
@@ -278,8 +302,15 @@ async function showTranscriptFlow(episode: Episode) {
             .replace(/&quot;/g, '"')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
-            .replace(/([.!?])\s+/g, '$1\n\n')
-            .replace(/Support the show/i, '');
+            // Normalize: ensure space after periods that are missing it
+            .replace(/\.([A-Z])/g, '. $1')
+            .replace(/\?([A-Z])/g, '? $1')
+            .replace(/!([A-Z])/g, '! $1')
+            // Split into paragraphs at sentence boundaries
+            .replace(/([.!?])\s{1,3}([A-Z])/g, '$1\n\n$2')
+            .replace(/([.!?])\s{1,3}([A-Z])/g, '$1\n\n$2')
+            .replace(/Support the show/i, '')
+            .trim();
     }
 
     console.log(chalk.magenta.bold(`\n--- TRANSCRIPT: ${episode.title} ---`));
