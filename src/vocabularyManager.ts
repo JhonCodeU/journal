@@ -5,7 +5,7 @@ import axios from 'axios';
 import { VocabularyItem } from './types.js';
 import { getAIExample } from './aiManager.js';
 
-const VOCAB_FILE = './vocabulary.json';
+const VOCAB_FILE = './data/vocabulary.json';
 const DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 
 export function getVocabulary(): VocabularyItem[] {

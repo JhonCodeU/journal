@@ -2,7 +2,7 @@ import fs from 'fs';
 import chalk from 'chalk';
 import { UserStats } from './types.js';
 
-const STATS_FILE = './stats.json';
+const STATS_FILE = './data/stats.json';
 
 const INITIAL_STATS: UserStats = {
     xp: 0,

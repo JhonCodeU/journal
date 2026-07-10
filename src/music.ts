@@ -12,7 +12,7 @@ import fs from 'fs';
 
 const GENIUS_API_BASE_URL = 'https://api.genius.com';
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_API_TOKEN;
-const MUSIC_JOURNAL_FILE = './music_journal.json';
+const MUSIC_JOURNAL_FILE = './data/music_journal.json';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 

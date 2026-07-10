@@ -11,7 +11,7 @@ import { fetchArticle } from './webReader.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
 
-const LISTENED_FILE = './listened_episodes.json';
+const LISTENED_FILE = './data/listened_episodes.json';
 
 function getListenedEpisodes(): Set<string> {
   try {

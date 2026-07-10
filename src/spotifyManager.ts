@@ -6,7 +6,7 @@ import http from 'http';
 import url from 'url';
 import chalk from 'chalk';
 
-const STORAGE_FILE = path.resolve('storage.json');
+const STORAGE_FILE = path.resolve('data/storage.json');
 
 interface SpotifyTokens {
   accessToken: string;

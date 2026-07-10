@@ -6,7 +6,7 @@ import { JournalEntry } from './types.js';
 import { getJournalFeedback, getGrammarCorrections } from './aiManager.js';
 import { addXP } from './statsManager.js';
 
-const DB_FILE = './storage.json';
+const DB_FILE = './data/storage.json';
 
 export async function applyCorrections(text: string): Promise<string> {
     console.log(chalk.blue('\nChecking grammar and style with AI...'));

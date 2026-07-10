@@ -11,7 +11,7 @@ import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
 import { spawn, ChildProcess } from 'child_process';
 
-const PROGRESS_FILE = './reading_progress.json';
+const PROGRESS_FILE = './data/reading_progress.json';
 let currentAudioProcess: ChildProcess | null = null;
 let audioPaused = false;
 
