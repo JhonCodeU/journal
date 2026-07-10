@@ -262,18 +262,29 @@ async function studyEpisode(episode: Episode, sourceName: string) {
 }
 
 async function showTranscriptFlow(episode: Episode) {
-    console.log(chalk.blue(`\nFetching transcript from ${episode.transcriptUrl}...`));
-    const article = await fetchArticle(episode.transcriptUrl);
+    let content: string | null = null;
 
-    if (!article) {
-        console.log(chalk.red('Could not fetch transcript automatically.'));
-        console.log(chalk.cyan('Link: ') + chalk.underline.blue(episode.transcriptUrl));
-        return;
+    if (episode.transcriptUrl && episode.transcriptUrl !== episode.link) {
+        console.log(chalk.blue(`\nFetching transcript from ${episode.transcriptUrl}...`));
+        const article = await fetchArticle(episode.transcriptUrl);
+        if (article) content = article.content;
     }
 
-    console.log(chalk.magenta.bold(`\n--- TRANSCRIPT: ${article.title} ---`));
+    if (!content) {
+        console.log(chalk.yellow('\nNo se encontró página de transcripción. Usando la descripción del episodio...'));
+        content = episode.description
+            .replace(/&apos;/g, "'")
+            .replace(/&amp;/g, "&")
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/([.!?])\s+/g, '$1\n\n')
+            .replace(/Support the show/i, '');
+    }
+
+    console.log(chalk.magenta.bold(`\n--- TRANSCRIPT: ${episode.title} ---`));
     
-    const words = article.content.match(/\b[a-zA-Z]+\b/g) || [];
+    const words = content.match(/\b[a-zA-Z]+\b/g) || [];
     const difficultWords = new Set<string>();
     words.forEach(word => {
         const cleanedWord = word.toLowerCase();
@@ -282,7 +293,7 @@ async function showTranscriptFlow(episode: Episode) {
         }
     });
 
-    let highlightedText = article.content;
+    let highlightedText = content;
     difficultWords.forEach(word => {
         const regex = new RegExp(`\\b${word}\\b`, 'g');
         highlightedText = highlightedText.replace(regex, chalk.yellow(word));
@@ -319,7 +330,7 @@ async function showTranscriptFlow(episode: Episode) {
             if (translation) await saveWord({ word, translation });
         }
     } else if (vocabAction === 'ai') {
-        await extractVocabularyAIFlow(article.content.substring(0, 5000));
+        await extractVocabularyAIFlow(content.substring(0, 5000));
     }
 }
 
