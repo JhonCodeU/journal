@@ -13,11 +13,31 @@ import { spawn, ChildProcess } from 'child_process';
 
 const PROGRESS_FILE = './reading_progress.json';
 let currentAudioProcess: ChildProcess | null = null;
+let audioPaused = false;
 
 function stopAudio() {
     if (currentAudioProcess) {
         currentAudioProcess.kill();
         currentAudioProcess = null;
+        audioPaused = false;
+    }
+}
+
+function togglePauseAudio() {
+    if (!currentAudioProcess || !currentAudioProcess.pid) {
+        console.log(chalk.yellow('  No hay audio.\n'));
+        return;
+    }
+    try {
+        if (audioPaused) {
+            process.kill(currentAudioProcess.pid, 'SIGCONT');
+            audioPaused = false;
+        } else {
+            process.kill(currentAudioProcess.pid, 'SIGSTOP');
+            audioPaused = true;
+        }
+    } catch {
+        console.log(chalk.red('  Error al pausar/reanudar.\n'));
     }
 }
 
@@ -27,12 +47,10 @@ function speak(text: string, rate: string = '-15%') {
     const cleanText = text
         .replace(/\n+/g, ' ')
         .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 1500);
+        .trim();
 
     const timestamp = Date.now();
     const tempRaw = `/tmp/tts_raw_${timestamp}.mp3`;
-    const tempNorm = `/tmp/tts_norm_${timestamp}.mp3`;
     const textFile = `/tmp/tts_text_${timestamp}.txt`;
     const edgeTtsPath = '/home/dat-pt74/.local/bin/edge-tts';
 
@@ -47,57 +65,30 @@ function speak(text: string, rate: string = '-15%') {
     ]);
 
     let ttsError = '';
-    tts.stderr.on('data', (data) => {
-        ttsError += data.toString();
-    });
-
+    tts.stderr.on('data', (data) => { ttsError += data.toString(); });
     currentAudioProcess = tts;
 
     tts.on('close', (code) => {
         if (code !== 0) {
-            console.error(chalk.red('\n❌ Error generando audio TTS.'));
-            if (ttsError) {
-                console.error(chalk.red(`Detalles: ${ttsError}`));
-            }
+            console.error(chalk.red('\n❌ Error generando audio.'));
+            if (ttsError) console.error(chalk.red(ttsError));
             fs.rmSync(textFile, { force: true });
             currentAudioProcess = null;
             return;
         }
 
-        const ffmpeg = spawn('ffmpeg', [
-            '-i', tempRaw,
-            '-af', 'loudnorm=I=-9:TP=-0.5:LRA=11,volume=1.5',
-            '-ar', '44100',
-            tempNorm,
-            '-y', '-loglevel', 'quiet'
-        ]);
+        console.log(chalk.green('  ▶️ Reproduciendo...\n'));
+        const player = spawn('ffplay', [
+            '-nodisp', '-autoexit', '-loglevel', 'quiet', tempRaw
+        ], { stdio: 'ignore' });
 
-        currentAudioProcess = ffmpeg;
+        currentAudioProcess = player;
 
-        ffmpeg.on('close', (code) => {
+        player.on('close', () => {
             fs.rmSync(tempRaw, { force: true });
             fs.rmSync(textFile, { force: true });
-
-            if (code !== 0) {
-                console.error(chalk.red('\n❌ Error normalizando audio.'));
-                currentAudioProcess = null;
-                return;
-            }
-
-            const vlc = spawn('cvlc', [
-                '-I', 'dummy',
-                '--no-video',
-                '--volume', '512',
-                '--play-and-exit',
-                tempNorm
-            ], { stdio: 'ignore' });
-
-            currentAudioProcess = vlc;
-
-            vlc.on('close', () => {
-                fs.rmSync(tempNorm, { force: true });
-                currentAudioProcess = null;
-            });
+            currentAudioProcess = null;
+            audioPaused = false;
         });
     });
 }
@@ -368,10 +359,14 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
         console.log(chalk.italic.gray('\n  Atajos: ') +
             chalk.white('[n]ext ') + chalk.gray('| ') +
             chalk.white('[p]rev ') + chalk.gray('| ') +
-            chalk.white('[s]peak ') + chalk.gray('| ') +
+            (currentAudioProcess
+                ? (audioPaused
+                    ? chalk.yellow('[r]eum') + chalk.gray('| ') + chalk.white('[x]it ')
+                    : chalk.yellow('[p]ause') + chalk.gray('| ') + chalk.white('[x]it '))
+                : chalk.white('[s]peak ') + chalk.gray('| ')) +
             chalk.white('[l]ookup ') + chalk.gray('| ') +
             chalk.white('[v]ocab ') + chalk.gray('| ') +
-            chalk.cyan('[m]ás IA ') + chalk.gray('| ') +
+            chalk.cyan('[m]ás ') + chalk.gray('| ') +
             chalk.white('[x]it\n'));
 
         const { raw } = await inquirer.prompt([{
@@ -379,8 +374,10 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             name: 'raw',
             message: '>',
             validate: (input: string) => {
-                const valid = ['n','p','s','l','v','m','x','1','2','3','4','5','6','7'];
-                return valid.includes(input.trim().toLowerCase()) ? true : 'Usa: n/p/s/l/v/m/x';
+                const base = ['n','p','s','l','v','m','x','1','2','3','4','5','6','7'];
+                const audio = ['r', 'z'];
+                return [...base, ...audio].includes(input.trim().toLowerCase().slice(0, 1))
+                    ? true : 'Usa: n/p/s/l/v/m/x';
             },
             filter: (input: string) => input.trim().toLowerCase().slice(0, 1)
         }]);
@@ -388,33 +385,50 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
         let action: string;
 
         if (raw === 'm' || raw === '6') {
+            const moreChoices: any[] = [
+                { name: '🌐  Traducción Bilingüe (IA)', value: 'bilingual' },
+                { name: '🧠  Analizar Vocabulario (IA)', value: 'analyze' },
+                { name: '✨  Simplificar a A2 (IA)', value: 'simplify' },
+                { name: '🤖  Explicar (IA)', value: 'explain' },
+                new inquirer.Separator(),
+            ];
+            if (currentAudioProcess) {
+                moreChoices.push({ name: audioPaused ? '▶️  Reanudar' : '⏸️  Pausar', value: 'toggle' });
+            } else {
+                moreChoices.push({ name: '🔊  Escuchar Normal', value: 'speak' });
+            }
+            moreChoices.push(
+                { name: '🐢  Escuchar Lento', value: 'speak_slow' },
+                { name: '🐇  Escuchar Rápido', value: 'speak_fast' },
+                { name: '🔇  Detener', value: 'stop' },
+                new inquirer.Separator(),
+                { name: '↩️  Volver', value: 'back' }
+            );
+
             const { sub } = await inquirer.prompt([{
                 type: 'list',
                 name: 'sub',
                 message: 'Más opciones:',
-                choices: [
-                    { name: '🌐  Traducción Bilingüe (IA)', value: 'bilingual' },
-                    { name: '🧠  Analizar Vocabulario (IA)', value: 'analyze' },
-                    { name: '✨  Simplificar a A2 (IA)', value: 'simplify' },
-                    { name: '🤖  Explicar (IA)', value: 'explain' },
-                    new inquirer.Separator(),
-                    { name: '🐢  Escuchar Lento', value: 'speak_slow' },
-                    { name: '🐇  Escuchar Rápido', value: 'speak_fast' },
-                    { name: '🔇  Detener Narración', value: 'stop' },
-                    new inquirer.Separator(),
-                    { name: '↩️  Volver', value: 'back' }
-                ]
+                choices: moreChoices
             }]);
             if (sub === 'back') continue;
             action = sub;
         } else {
             const actions: Record<string, string> = {
                 '1': 'next', 'n': 'next', '2': 'prev', 'p': 'prev',
-                '3': 'speak', 's': 'speak', '4': 'lookup', 'l': 'lookup',
+                '4': 'lookup', 'l': 'lookup',
                 '5': 'savePageVocab', 'v': 'savePageVocab',
                 '7': 'exit', 'x': 'exit'
             };
-            action = actions[raw] || 'next';
+            // When audio is active, s/3 toggles pause instead of re-triggering
+            if (currentAudioProcess) {
+                actions['3'] = 'toggle';
+                actions['s'] = 'toggle';
+            } else {
+                actions['3'] = 'speak';
+                actions['s'] = 'speak';
+            }
+            action = actions[raw] || (currentAudioProcess ? 'toggle' : 'next');
         }
 
         // ── Auto-prompt on page leave ──
@@ -458,6 +472,8 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
         } else if (action === 'speak_fast') {
             console.log(chalk.blue('\nNarrando rápido...'));
             speak(pageText, '+10%');
+        } else if (action === 'toggle') {
+            togglePauseAudio();
         } else if (action === 'stop') {
             console.log(chalk.yellow('\nNarración detenida.'));
             stopAudio();
