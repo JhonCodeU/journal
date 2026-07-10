@@ -16,7 +16,7 @@ const MUSIC_JOURNAL_FILE = './data/music_journal.json';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type InteractionMode = 'word-by-word' | 'full-line' | 'multiple-choice';
+type InteractionMode = 'word-by-word' | 'full-line' | 'multiple-choice' | 'karaoke';
 
 interface ProcessedLine {
   originalLine: string;
@@ -647,8 +647,15 @@ export async function interactiveMusicSession(): Promise<void> {
       { name: 'Opción múltiple    (LyricsTraining style - elegir entre 3)', value: 'multiple-choice' },
       { name: 'Palabra por palabra  (un prompt por cada blank)', value: 'word-by-word' },
       { name: 'Línea completa       (todas las palabras del renglón juntas)', value: 'full-line' },
+      { name: '🎤 Karaoke            (letras sincronizadas mientras escuchas)', value: 'karaoke' },
     ],
   }]);
+
+  // ── KARAOKE MODE ──
+  if (mode === 'karaoke') {
+    await playKaraoke(lyricSections, youtubeUrl, artist, title);
+    return; // karaoke handles save/exit internally
+  }
 
   const { difficulty } = await inquirer.prompt([{
     type: 'select',
@@ -754,6 +761,141 @@ export async function interactiveMusicSession(): Promise<void> {
         }
       }
       console.log(chalk.green(`\n✔ ${saved} de ${missedWords.size} palabras guardadas al vocabulario.\n`));
+    }
+  }
+}
+
+// ─── KARAOKE MODE ─────────────────────────────────────────────────────────────
+
+interface KaraokeItem { type: 'section' | 'line'; text: string; words?: string[]; }
+
+async function playKaraoke(
+  sections: { title: string; lines: string[] }[],
+  youtubeUrl: string,
+  artist: string,
+  title: string
+) {
+  const { duration } = await inquirer.prompt([{
+    type: 'input',
+    name: 'duration',
+    message: '¿Cuánto dura la canción? (min:seg, ej: 3:30):',
+    default: '3:00',
+  }]);
+
+  const [min = 0, sec = 0] = duration.split(':').map(Number);
+  const totalMs = ((min || 0) * 60 + (sec || 0)) * 1000;
+
+  // Flatten all lines including section headers
+  const timeline: KaraokeItem[] = [];
+  for (const s of sections) {
+    timeline.push({ type: 'section' as const, text: s.title });
+    for (const line of s.lines) {
+      if (line.trim()) {
+        const words = line.match(/\b\w+\b/g) || [];
+        timeline.push({ type: 'line' as const, text: line, words });
+      }
+    }
+  }
+
+  const msPerItem = Math.floor(totalMs / timeline.length);
+
+  console.log(chalk.green(`\n🎤 MODO KARAOKE — ${title} — ${artist}`));
+  console.log(chalk.cyan(`▶️  ${youtubeUrl}`));
+  console.log(chalk.gray(`   ${timeline.length} líneas · ~${Math.round(msPerItem / 1000)}s por línea\n`));
+  console.log(chalk.yellow('   Presiona Enter cuando empiece la canción...\n'));
+  await inquirer.prompt([{ type: 'input', name: '_', message: '' }]);
+
+  for (let i = 0; i < timeline.length; i++) {
+    const item = timeline[i];
+    const startTime = Date.now();
+
+    console.clear();
+
+    // Show header
+    console.log(chalk.blue.bold(`\n🎤 ${title} — ${artist}`));
+    console.log(chalk.gray(`   ${i + 1}/${timeline.length}\n`));
+    console.log(chalk.cyan('='.repeat(50)));
+
+    // Show section context (previous lines as dim)
+    const contextStart = Math.max(0, i - 3);
+    for (let j = contextStart; j < i; j++) {
+      const prev = timeline[j];
+      if (prev.type === 'section') {
+        console.log(chalk.dim.magenta(`[${prev.text}]`));
+      } else {
+        console.log(chalk.dim(`  ${prev.text}`));
+      }
+    }
+
+    // Show current item
+    if (item.type === 'section') {
+      console.log(chalk.magenta.bold(`\n  ── ${item.text} ──`));
+    } else {
+      // Word-by-word highlighting
+      const words = item.text.split(/(\s+)/);
+      let highlighted = '';
+      for (const w of words) {
+        highlighted += chalk.white(w);
+      }
+      console.log(`\n  ${chalk.yellow.bold('♪')}  ${highlighted}`);
+    }
+
+    console.log(chalk.cyan('\n' + '='.repeat(50)));
+    console.log(chalk.gray(`   ⏱️  ${Math.ceil((totalMs - (Date.now() - startTime)) / 1000)}s restantes`));
+
+    // Wait remaining time
+    const elapsed = Date.now() - startTime;
+    const wait = Math.max(50, msPerItem - elapsed);
+    await new Promise(r => setTimeout(r, wait));
+  }
+
+  console.clear();
+  console.log(chalk.green.bold(`\n🎤 ¡Canción terminada! ${title} — ${artist}\n`));
+
+  const { save } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'save',
+    message: '¿Guardar en el historial?',
+    default: true,
+  }]);
+
+  if (save) {
+    const history = loadSongHistory();
+    const allLyrics = sections.map(s => `[${s.title}]\n${s.lines.join('\n')}`).join('\n\n');
+    history.push({ artist, title, date: new Date().toISOString(), score: timeline.length, total: timeline.length, lyrics: allLyrics, mode: 'karaoke', difficulty: 0, missedWords: [] });
+    saveSongHistory(history);
+    console.log(chalk.green('✔ Guardado.\n'));
+  }
+
+  // Vocab extraction
+  const allText = sections.flatMap(s => s.lines).join(' ');
+  const { doVocab } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'doVocab',
+    message: '¿Extraer vocabulario de la canción?',
+    default: false,
+  }]);
+
+  if (doVocab) {
+    const words = (allText.match(/\b[a-zA-Z]{3,}\b/g) || [])
+      .filter(w => !commonWords.has(w.toLowerCase()))
+      .filter(w => !getVocabulary().some(v => v.word.toLowerCase() === w.toLowerCase()));
+    const unique = [...new Set(words)].sort();
+
+    if (unique.length > 0) {
+      console.log(chalk.blue('Traduciendo...'));
+      const translations = await getBatchTranslations(unique.slice(0, 25));
+      const { sel } = await inquirer.prompt([{
+        type: 'checkbox',
+        name: 'sel',
+        message: `Palabras nuevas (${unique.length}):`,
+        choices: translations.map(t => ({ name: `${chalk.yellow(t.word)}: ${t.translation}`, value: t.word, checked: true })),
+        pageSize: 15,
+      }]);
+      for (const w of sel) {
+        const t = translations.find(t => t.word === w);
+        if (t?.translation) await saveWord({ word: t.word, translation: t.translation });
+      }
     }
   }
 }
