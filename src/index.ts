@@ -11,6 +11,7 @@ import { openPDFHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
+import { newsReader } from './newsReader.js';
 
 const args = process.argv.slice(2);
 
@@ -75,6 +76,7 @@ async function mainMenu(): Promise<void> {
       { name: '🎵 Learn with Music (Interactive)', value: 'music' },
         { name: '📖 PDF Reader (Books)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
+        { name: '📰 News Reader (RSS)', value: 'news' },
         { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
         { name: '📝 Daily Writing Challenge', value: 'writing' },
         { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
@@ -98,6 +100,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'web':
         await openWebReader();
+        break;
+    case 'news':
+        await newsReader();
         break;
     case 'audio-lib':
         await interactiveAudioLibrarySession();
@@ -146,6 +151,10 @@ if (args.includes('--review') || args.includes('-r')) {
   showStatus();
   await quickReview();
   console.log(chalk.gray('\nUsa ' + chalk.italic('npm start') + ' para el menú completo.\n'));
+} else if (args.includes('--news') || args.includes('-w')) {
+    updateStreak();
+    await newsReader();
+    console.log(chalk.gray('\nUsa ' + chalk.italic('npm start') + ' para el menú completo.\n'));
 } else if (args.includes('--bbc') || args.includes('-b')) {
   updateStreak();
   console.log(chalk.cyan.bold('\n🎧 BBC 6 Minute English (Acceso Directo)\n'));

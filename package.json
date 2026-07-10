@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "review": "tsx src/index.ts --review",
     "bbc": "tsx src/index.ts --bbc",
+    "news": "tsx src/index.ts --news",
     "build": "tsc"
   },
   "keywords": [
