@@ -531,16 +531,42 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                     }
                     // Mostrar cada palabra de la frase por separado también
                     const singleWords = cleanWord.split(/\s+/).filter((w: string) => w.length > 2);
+                    let wordTranslations: {word: string, translation: string}[] = [];
                     if (singleWords.length > 0) {
                         console.log(chalk.dim('\n  Palabras individuales:'));
-                        const wordTrans = await getBatchTranslations(singleWords);
-                        for (const wt of wordTrans) {
+                        wordTranslations = await getBatchTranslations(singleWords);
+                        for (const wt of wordTranslations) {
                             if (wt.translation) {
                                 console.log(chalk.dim(`    ${wt.word} → ${wt.translation}`));
                             }
                         }
                     }
-                    await inquirer.prompt([{ type: 'input', name: 'wait', message: '\nEnter para volver...' }]);
+                    // Ofrecer guardar palabras de la frase
+                    const toSave = wordTranslations.filter(wt => wt.translation);
+                    if (toSave.length > 0) {
+                        const { savePhraseWords } = await inquirer.prompt([{
+                            type: 'checkbox',
+                            name: 'savePhraseWords',
+                            message: '📚 ¿Guardar palabras al vocabulario?',
+                            choices: toSave.map(wt => ({
+                                name: `${wt.word} → ${wt.translation}`,
+                                value: wt.word,
+                                checked: false
+                            })),
+                            pageSize: 10
+                        }]);
+                        if (savePhraseWords.length > 0) {
+                            for (const word of savePhraseWords) {
+                                const wt = toSave.find(t => t.word === word);
+                                if (wt) {
+                                    const wordContext = extractContextSentence(pageText, word);
+                                    await saveWord({ word: wt.word, translation: wt.translation, context: wordContext });
+                                }
+                            }
+                            console.log(chalk.green(`\n✔ ${savePhraseWords.length} palabras guardadas.\n`));
+                            addXP(savePhraseWords.length * 10);
+                        }
+                    }
                 } else {
                     // Palabra individual → flujo existente
                     const translations = await getBatchTranslations([cleanWord]);
