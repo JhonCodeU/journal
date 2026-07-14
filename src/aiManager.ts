@@ -141,35 +141,45 @@ export async function getWordHelp(spanishPhrase: string): Promise<string> {
 }
 
 export async function getBilingualPage(text: string): Promise<string> {
-    const prompt = `Traduce este texto de libro al español por párrafos. NO línea por línea.
+    const prompt = `Traduce este texto al español, agrupando VARIAS oraciones en cada bloque.
 
-Agrupa VARIAS oraciones en cada bloque EN/ES para que sea más compacto. Pon la traducción PRIMERO y el original DESPUÉS.
-
-Ejemplo:
-ES: El Sr. y la Sra. Dursley estaban orgullosos de decir que eran perfectamente normales. Eran las últimas personas esperarías ver involucradas en algo extraño.
-EN: Mr. and Mrs. Dursley were proud to say they were perfectly normal. They were the last people you'd expect to be involved in anything strange.
-ES: El Sr. Dursley era el director de Grunnings, que fabricaba taladros. Era un hombre grande y corpulento, casi sin cuello.
-EN: Mr. Dursley was the director of a firm called Grunnings, which made drills. He was a big, beefy man with hardly any neck.
-
-Instrucciones:
-- Cada bloque: primero "ES: traducción", luego "EN: original"
-- Agrupa 2-4 oraciones por bloque
+REGLAS:
+- Agrupa MÍNIMO 3-5 oraciones por bloque (como párrafos reales del libro)
+- Pon "ES:" primero con la traducción del grupo
+- Pon "EN:" después con el original del grupo
 - Separa los bloques con una línea vacía
-- Traduce natural, no palabra por palabra
 
-Texto a traducir:
+NO hagas esto (una oración por bloque):
+ES: Mr. Dursley canturreaba mientras elegía su corbata.
+EN: Mr. Dursley hummed as he picked out his tie.
+ES: Ninguno notó un búho pasando.
+EN: None of them noticed an owl.
+
+Sí haz esto (3-5 oraciones agrupadas):
+ES: Mr. Dursley canturreaba mientras elegía su corbata más aburrida para el trabajo. Ninguno de ellos notó un búho que pasaba por la ventana. A las 8:30 Mr. Dursley cogió su maletín y besó a su esposa en la mejilla.
+EN: Mr. Dursley hummed as he picked out his most boring tie for work. None of them noticed a large, tawny owl flutter past the window. At half past eight, Mr. Dursley picked up his briefcase and pecked Mrs. Dursley on the cheek.
+
+Texto:
 ${text}`;
 
-    return await callOllama(prompt, "Traductor de libros inglés-español. Traducción agrupada en párrafos con ES: primero y EN: después.");
+    return await callOllama(prompt, "Traductor que agrupa 3-5 oraciones por bloque. ES: traducción, EN: original.");
 }
 
-export async function translatePhrase(phrase: string): Promise<string> {
-    const prompt = `Translate the following English text to natural Spanish. 
-Return ONLY the translation, nothing else. Keep the same meaning and tone.
+export async function translatePhrase(phrase: string, context?: string): Promise<string> {
+    const prompt = context
+        ? `Translate this English phrase to Spanish, using the context for accuracy.
 
-Text: "${phrase}"`;
+Phrase: "${phrase}"
+Context: "${context}"
 
-    const response = await callOllama(prompt, "You are a translator. Return ONLY the translation.");
+Return ONLY the translation, nothing else.`
+        : `Translate this English phrase to Spanish accurately.
+
+Phrase: "${phrase}"
+
+Return ONLY the translation, nothing else.`;
+
+    const response = await callOllama(prompt, "You are an English-to-Spanish translator. Return ONLY the translation.");
     return response?.trim() || phrase;
 }
 

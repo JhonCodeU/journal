@@ -523,8 +523,9 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                 const isPhrase = cleanWord.split(/\s+/).length > 1;
 
                 if (isPhrase) {
-                    // Frase → traducir con IA
-                    const translation = await translatePhrase(cleanWord);
+                    // Frase → traducir con IA (con contexto para precisión)
+                    const fullContext = extractContextSentence(pageText, cleanWord);
+                    const translation = await translatePhrase(cleanWord, fullContext);
                     console.log(chalk.green(`\n  "${cleanWord}" → ${translation}`));
                     if (context) {
                         console.log(chalk.dim(`  Contexto: "${context}"`));
