@@ -167,19 +167,19 @@ ${text}`;
 
 export async function translatePhrase(phrase: string, context?: string): Promise<string> {
     const prompt = context
-        ? `Translate this English phrase to Spanish, using the context for accuracy.
+        ? `Translate this English phrase to Spanish.
 
 Phrase: "${phrase}"
 Context: "${context}"
 
-Return ONLY the translation, nothing else.`
-        : `Translate this English phrase to Spanish accurately.
+Return ONLY the Spanish translation. Nothing else.`
+        : `Translate this English phrase to Spanish.
 
 Phrase: "${phrase}"
 
-Return ONLY the translation, nothing else.`;
+Return ONLY the Spanish translation. Nothing else.`;
 
-    const response = await callOllama(prompt, "You are an English-to-Spanish translator. Return ONLY the translation.");
+    const response = await callOllama(prompt, "You translate English to Spanish only. Return ONLY the translation.", LYRICS_MODEL);
     return response?.trim() || phrase;
 }
 
@@ -195,11 +195,12 @@ export async function getPageAnalysis(text: string): Promise<string> {
 
 export async function getBatchTranslations(words: string[]): Promise<{word: string, translation: string}[]> {
   if (words.length === 0) return [];
-  const prompt = `Translate the following English words to Spanish. Return ONLY a JSON array of objects with "word" and "translation" keys. 
+  const prompt = `Translate these English words to Spanish.
+Return ONLY a JSON array of objects with "word" and "translation" keys. Translations must be in Spanish.
 Words: ${JSON.stringify(words)}
 Example: [{"word": "heartache", "translation": "angustia"}, {"word": "ripped", "translation": "rasgado"}]`;
 
-  const response = await callOllama(prompt, "You are a translator. Return ONLY valid JSON array.");
+  const response = await callOllama(prompt, "You translate English to Spanish only. Return ONLY valid JSON array.", LYRICS_MODEL);
   try {
     const jsonStart = response.indexOf('[');
     const jsonEnd = response.lastIndexOf(']') + 1;

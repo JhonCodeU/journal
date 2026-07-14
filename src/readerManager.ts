@@ -564,8 +564,9 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
                                     await saveWord({ word: wt.word, translation: wt.translation, context: wordContext });
                                 }
                             }
-                            console.log(chalk.green(`\n✔ ${savePhraseWords.length} palabras guardadas.\n`));
+                            console.log(chalk.green(`\n✔ ${savePhraseWords.length} palabras guardadas al vocabulario.\n`));
                             addXP(savePhraseWords.length * 10);
+                            await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Enter para volver a la lectura...' }]);
                         }
                     }
                 } else {
