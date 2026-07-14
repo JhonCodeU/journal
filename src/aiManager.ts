@@ -141,26 +141,26 @@ export async function getWordHelp(spanishPhrase: string): Promise<string> {
 }
 
 export async function getBilingualPage(text: string): Promise<string> {
-    const prompt = `Traduce este texto de libro al español línea por línea.
+    const prompt = `Traduce este texto de libro al español por párrafos. NO línea por línea.
 
-CADA línea en inglés debe ir seguida de su traducción con "ES:".
+Agrupa VARIAS oraciones en cada bloque EN/ES para que sea más compacto. Pon la traducción PRIMERO y el original DESPUÉS.
 
 Ejemplo:
-IN: Mr. and Mrs. Dursley were proud to say they were perfectly normal.
-ES: El Sr. y la Sra. Dursley estaban orgullosos de decir que eran perfectamente normales.
-IN: They were the last people you'd expect to be involved in anything strange.
-ES: Eran las últimas personas que uno esperaría que estuvieran involucradas en algo extraño.
+ES: El Sr. y la Sra. Dursley estaban orgullosos de decir que eran perfectamente normales. Eran las últimas personas esperarías ver involucradas en algo extraño.
+EN: Mr. and Mrs. Dursley were proud to say they were perfectly normal. They were the last people you'd expect to be involved in anything strange.
+ES: El Sr. Dursley era el director de Grunnings, que fabricaba taladros. Era un hombre grande y corpulento, casi sin cuello.
+EN: Mr. Dursley was the director of a firm called Grunnings, which made drills. He was a big, beefy man with hardly any neck.
 
 Instrucciones:
-- Para CADA línea de texto, escribe "IN: línea original" y debajo "ES: traducción"
-- Si una línea está vacía, déjala vacía
-- Traduce el significado completo, no palabra por palabra
-- Usa un estilo natural y literario
+- Cada bloque: primero "ES: traducción", luego "EN: original"
+- Agrupa 2-4 oraciones por bloque
+- Separa los bloques con una línea vacía
+- Traduce natural, no palabra por palabra
 
-Texto:
+Texto a traducir:
 ${text}`;
 
-    return await callOllama(prompt, "Traductor de libros inglés-español. Cada línea original con IN: seguida de ES: traducción.");
+    return await callOllama(prompt, "Traductor de libros inglés-español. Traducción agrupada en párrafos con ES: primero y EN: después.");
 }
 
 export async function translatePhrase(phrase: string): Promise<string> {
