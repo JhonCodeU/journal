@@ -158,11 +158,10 @@ export async function getBilingualPage(text: string): Promise<string> {
 }
 
 export async function translatePhrase(phrase: string): Promise<string> {
-    const prompt = `Translate the following English phrase to Spanish. 
-Return ONLY the translation, nothing else.
-If it's a proper noun or name, simply return "Es un nombre propio" followed by what it refers to if you know.
+    const prompt = `Translate the following English text to natural Spanish. 
+Return ONLY the translation, nothing else. Keep the same meaning and tone.
 
-Phrase: "${phrase}"`;
+Text: "${phrase}"`;
 
     const response = await callOllama(prompt, "You are a translator. Return ONLY the translation.");
     return response?.trim() || phrase;
