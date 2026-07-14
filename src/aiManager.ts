@@ -157,6 +157,17 @@ export async function getBilingualPage(text: string): Promise<string> {
     return await callOllama(prompt, "You are a professional literary translator. Your goal is to provide a natural and flowing Spanish translation that captures the author's voice. Provide ONLY the interleaved text.");
 }
 
+export async function translatePhrase(phrase: string): Promise<string> {
+    const prompt = `Translate the following English phrase to Spanish. 
+Return ONLY the translation, nothing else.
+If it's a proper noun or name, simply return "Es un nombre propio" followed by what it refers to if you know.
+
+Phrase: "${phrase}"`;
+
+    const response = await callOllama(prompt, "You are a translator. Return ONLY the translation.");
+    return response?.trim() || phrase;
+}
+
 export async function getPageAnalysis(text: string): Promise<string> {
     const prompt = `Analyze this text from a book: "${text.substring(0, 1000)}..."
     Provide:

@@ -436,5 +436,21 @@
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "the youngest victims of the brutal war",
     "context": "A local official said four of the victims may be British after a fire broke out near Los Gallardos, Almería."
+  },
+  {
+    "word": "nonsense",
+    "translation": "sin sentido",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": null,
+    "context": "They were the\nlast people you’d expect to be involved in anything strange or mysterious,\nbecause they just didn’t hold w"
+  },
+  {
+    "word": "privet drive",
+    "translation": "sendero de privet",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": null,
+    "context": "Dursley, of number four, Privet Drive, were proud to say\nthat they were perfectly normal, thank you very much."
   }
 ]
