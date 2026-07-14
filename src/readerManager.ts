@@ -621,21 +621,28 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
         } else if (action === 'bilingual') {
             console.log(chalk.blue('\nTraduciendo página con IA...'));
 
-            // Split into groups of ~4 sentences each
-            const sentences = pageText.match(/[^.!?]+[.!?]+/g) || [pageText];
+            // Normalize PDF text and split into blocks of ~500 chars
+            const normalizedText = pageText
+                .replace(/\n+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const CHUNK_SIZE = 500;
             const groups: string[] = [];
-            for (let i = 0; i < sentences.length; i += 4) {
-                groups.push(sentences.slice(i, i + 4).join(' ').trim());
+            for (let i = 0; i < normalizedText.length; i += CHUNK_SIZE) {
+                groups.push(normalizedText.slice(i, i + CHUNK_SIZE).trim());
             }
 
-            // Show progress
             console.log(chalk.dim(`  ${groups.length} bloques para traducir...`));
 
             const bilingualParts: string[] = [];
             for (let i = 0; i < groups.length; i++) {
+                const pct = Math.round((i / groups.length) * 100);
+                process.stdout.write(chalk.dim(`\r  Traduciendo... ${pct}%`));
                 const translation = await translatePhrase(groups[i]);
                 bilingualParts.push(`ES: ${translation}\nEN: ${groups[i]}`);
             }
+            console.log(chalk.green(`\r  ¡Traducción completa!${' '.repeat(20)}`));
 
             console.clear();
             console.log(chalk.blue.bold(`\n📖 MODO BILINGÜE: ${title} (Pag. ${currentIndex + 1})`));
