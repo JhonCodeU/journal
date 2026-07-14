@@ -4,7 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ReadingProgress } from './types.js';
-import { getStylisticFeedback, simplifyToA2, getBilingualPage, getPageAnalysis, getBatchTranslations, getPodcastVocab, translatePhrase } from './aiManager.js';
+import { getStylisticFeedback, simplifyToA2, getPageAnalysis, getBatchTranslations, getPodcastVocab, translatePhrase } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
@@ -620,19 +620,31 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             await extractPageVocabAI(pageText);
         } else if (action === 'bilingual') {
             console.log(chalk.blue('\nTraduciendo página con IA...'));
-            const bilingual = await getBilingualPage(pageText);
+
+            // Split into groups of ~4 sentences each
+            const sentences = pageText.match(/[^.!?]+[.!?]+/g) || [pageText];
+            const groups: string[] = [];
+            for (let i = 0; i < sentences.length; i += 4) {
+                groups.push(sentences.slice(i, i + 4).join(' ').trim());
+            }
+
+            // Show progress
+            console.log(chalk.dim(`  ${groups.length} bloques para traducir...`));
+
+            const bilingualParts: string[] = [];
+            for (let i = 0; i < groups.length; i++) {
+                const translation = await translatePhrase(groups[i]);
+                bilingualParts.push(`ES: ${translation}\nEN: ${groups[i]}`);
+            }
+
             console.clear();
             console.log(chalk.blue.bold(`\n📖 MODO BILINGÜE: ${title} (Pag. ${currentIndex + 1})`));
             console.log(chalk.cyan('='.repeat(50)));
-            const lines = bilingual.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('IN: ')) {
-                    console.log(chalk.white(`  ${line}`));
-                } else if (line.startsWith('ES: ')) {
-                    console.log(chalk.italic.cyan(`  ${line}`));
-                } else if (line.trim()) {
-                    console.log(chalk.gray(`  ${line}`));
-                }
+            for (const block of bilingualParts) {
+                const [es, en] = block.split('\n');
+                console.log(chalk.italic.cyan(`  ${es}`));
+                console.log(chalk.white(`  ${en}`));
+                console.log('');
             }
             console.log(chalk.cyan('='.repeat(50)));
             await inquirer.prompt([{ type: 'input', name: 'wait', message: 'Presiona Enter para volver...' }]);
