@@ -141,20 +141,26 @@ export async function getWordHelp(spanishPhrase: string): Promise<string> {
 }
 
 export async function getBilingualPage(text: string): Promise<string> {
-    const prompt = `Translate the following book page into Spanish. 
-    IMPORTANT: 
-    - Translate every paragraph. 
-    - Use a natural, literary style that matches the tone of the original text.
-    - Ensure idiomatic expressions are translated meaningfully rather than literally.
-    
-    Return the result in an interleaved format: 
-    - Original English paragraph.
-    - Spanish translation on the next line (prefixed with 'ES: ').
-    
-    Text:
-    ${text}`;
-    
-    return await callOllama(prompt, "You are a professional literary translator. Your goal is to provide a natural and flowing Spanish translation that captures the author's voice. Provide ONLY the interleaved text.");
+    const prompt = `Traduce este texto de libro al español línea por línea.
+
+CADA línea en inglés debe ir seguida de su traducción con "ES:".
+
+Ejemplo:
+IN: Mr. and Mrs. Dursley were proud to say they were perfectly normal.
+ES: El Sr. y la Sra. Dursley estaban orgullosos de decir que eran perfectamente normales.
+IN: They were the last people you'd expect to be involved in anything strange.
+ES: Eran las últimas personas que uno esperaría que estuvieran involucradas en algo extraño.
+
+Instrucciones:
+- Para CADA línea de texto, escribe "IN: línea original" y debajo "ES: traducción"
+- Si una línea está vacía, déjala vacía
+- Traduce el significado completo, no palabra por palabra
+- Usa un estilo natural y literario
+
+Texto:
+${text}`;
+
+    return await callOllama(prompt, "Traductor de libros inglés-español. Cada línea original con IN: seguida de ES: traducción.");
 }
 
 export async function translatePhrase(phrase: string): Promise<string> {

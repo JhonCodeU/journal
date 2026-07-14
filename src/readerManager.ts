@@ -626,10 +626,12 @@ async function displayReader(title: string, pages: any[], startIndex: number = 0
             console.log(chalk.cyan('='.repeat(50)));
             const lines = bilingual.split('\n');
             for (const line of lines) {
-                if (line.startsWith('ES: ')) {
+                if (line.startsWith('IN: ')) {
+                    console.log(chalk.white(`  ${line}`));
+                } else if (line.startsWith('ES: ')) {
                     console.log(chalk.italic.cyan(`  ${line}`));
                 } else if (line.trim()) {
-                    console.log(chalk.white(`  ${line}`));
+                    console.log(chalk.gray(`  ${line}`));
                 }
             }
             console.log(chalk.cyan('='.repeat(50)));
