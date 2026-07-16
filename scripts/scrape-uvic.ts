@@ -53,6 +53,20 @@ function extractReadingIds(html: string, level: string): string[] {
   return [...ids].sort();
 }
 
+function decodeHtml(str: string): string {
+  // Decode named entities
+  let s = str
+    .replace(/&rsquo;/g, "'").replace(/&lsquo;/g, "'")
+    .replace(/&#39;/g, "'").replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, ' ').replace(/&mdash;/g, '—')
+    .replace(/&hellip;/g, '...');
+  // Decode numeric entities (hex and decimal)
+  s = s.replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+  s = s.replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+  return s;
+}
+
 function extractReading(html: string, id: string, level: string): any {
   // Audio URL
   let audioUrl = '';
@@ -65,6 +79,7 @@ function extractReading(html: string, id: string, level: string): any {
   if (h1Match) {
     title = h1Match[1].replace(/: Reading Comprehension$/, '').replace(/^\d+\s*/, '').trim();
   }
+  title = decodeHtml(title);
 
   // Text content
   let text = '';
@@ -82,10 +97,7 @@ function extractReading(html: string, id: string, level: string): any {
     let raw = html.substring(startPos, endPos);
     raw = raw.replace(/<[^>]+>/g, '');
     raw = raw.replace(/!\[.*?\]\(.*?\)/g, '');
-    raw = raw.replace(/&rsquo;/g, "'").replace(/&lsquo;/g, "'");
-    raw = raw.replace(/&amp;/g, "&").replace(/&quot;/g, '"');
-    raw = raw.replace(/&nbsp;/g, ' ').replace(/&mdash;/g, '—');
-    raw = raw.replace(/&hellip;/g, '...');
+    raw = decodeHtml(raw);
     raw = raw.replace(/\n{4,}/g, '\n\n').trim();
     text = raw;
   }
@@ -127,7 +139,7 @@ function extractReading(html: string, id: string, level: string): any {
       // Extract question text
       const qtMatch = item.match(/<div class="QuestionText">([\s\S]*?)<\/div>/);
       if (!qtMatch) { scanPos = foundClose + 5; continue; }
-      const question = qtMatch[1].replace(/<[^>]+>/g, '').trim();
+      const question = decodeHtml(qtMatch[1].replace(/<[^>]+>/g, '').trim());
 
       // Extract MCAnswers
       const mcMatch = item.match(/<ol class="MCAnswers">([\s\S]*?)<\/ol>/);
@@ -137,12 +149,11 @@ function extractReading(html: string, id: string, level: string): any {
       // Parse individual option LIs inside MCAnswers
       const optLines = mcMatch[1].match(/<li[^>]*>[\s\S]*?<\/li>/g) || [];
       for (const opt of optLines) {
-        const txt = opt
+        const txt = decodeHtml(opt
           .replace(/<button[^>]*>[\s\S]*?<\/button>/g, '')
           .replace(/<[^>]+>/g, '')
           .replace(/&nbsp;/g, ' ')
-          .replace(/&#39;/g, "'")
-          .trim();
+          .trim());
         if (txt) options.push(txt);
       }
 
