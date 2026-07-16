@@ -229,23 +229,22 @@ Example: [{"word": "crops", "translation": "cultivos"}, {"word": "weeds", "trans
 }
 
 export async function evaluateAnswer(question: string, userAnswer: string, text: string): Promise<{ correct: boolean; explanation: string }> {
-    const prompt = `I'm an English learner. I read this text and answered a question.
+    const prompt = `I am an English learner. I read a text and answered a comprehension question.
     
 Text: "${text.substring(0, 1500)}"
 
 Question: "${question}"
 My answer: "${userAnswer}"
 
-Is my answer correct based on the text? Reply with a JSON object: {"correct": true/false, "explanation": "short explanation in Spanish of why"}
-If my answer is wrong, explain what the correct answer would be.`;
-    const response = await callOllama(prompt, "You are a helpful English teacher. Return ONLY valid JSON.");
+Based on the text, is my answer correct? Reply with ONLY a JSON object: {"correct": true/false, "explanation": "a short explanation in English about whether my answer is correct and a suggestion to improve it"}`;
+    const response = await callOllama(prompt, "You are an English teacher. Return ONLY valid JSON.");
     try {
         const jsonStart = response.indexOf('{');
         const jsonEnd = response.lastIndexOf('}') + 1;
         const jsonStr = response.substring(jsonStart, jsonEnd);
         return JSON.parse(jsonStr);
     } catch (e) {
-        return { correct: false, explanation: 'Could not evaluate. Re-read the text to verify.' };
+        return { correct: false, explanation: 'Could not evaluate. Try re-reading the text to check your answer.' };
     }
 }
 
