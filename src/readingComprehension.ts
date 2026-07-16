@@ -49,10 +49,11 @@ async function playAudio(readingId: string): Promise<void> {
     }
   }
 
-  // Play with ffplay (non-blocking, auto-exit)
+  // Play with ffplay
   return new Promise((resolve) => {
+    console.log(chalk.gray('  Controls: Space(pause) · ←/→(10s) · ↑/↓(1min) · Esc(stop)\n'));
     const player = spawn('ffplay', ['-nodisp', '-autoexit', cachePath], {
-      stdio: 'ignore',
+      stdio: 'inherit',
     });
     player.on('close', () => resolve());
   });
