@@ -11,6 +11,7 @@ import { openPDFHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
+import { interactiveGrammarLesson } from './grammarLessons.js';
 import { newsReader } from './newsReader.js';
 
 const args = process.argv.slice(2);
@@ -81,6 +82,7 @@ async function mainMenu(): Promise<void> {
         { name: '📝 Daily Writing Challenge', value: 'writing' },
         { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
+      { name: '📚 Grammar Lessons (Tenses + Exercises)', value: 'grammar' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
         new inquirer.Separator(),
@@ -109,6 +111,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'writing':
         await interactiveWritingChallenge();
+        break;
+    case 'grammar':
+        await interactiveGrammarLesson();
         break;
     case 'podcast':
         await interactivePodcastSession();
