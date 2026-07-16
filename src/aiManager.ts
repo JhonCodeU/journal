@@ -211,6 +211,44 @@ Example: [{"word": "heartache", "translation": "angustia"}, {"word": "ripped", "
   }
 }
 
+export async function getKeyVocabulary(text: string): Promise<{ word: string; translation: string }[]> {
+    const prompt = `Extract 5-7 important English words from this text that an A2 learner should know before reading it.
+For each word, provide its Spanish translation based on the context.
+Return ONLY a JSON array of objects with "word" and "translation" keys.
+Text: "${text.substring(0, 2000)}"
+Example: [{"word": "crops", "translation": "cultivos"}, {"word": "weeds", "translation": "malas hierbas"}]`;
+    const response = await callOllama(prompt, "You are a language teacher. Return ONLY valid JSON.");
+    try {
+        const jsonStart = response.indexOf('[');
+        const jsonEnd = response.lastIndexOf(']') + 1;
+        const jsonStr = response.substring(jsonStart, jsonEnd);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        return [];
+    }
+}
+
+export async function evaluateAnswer(question: string, userAnswer: string, text: string): Promise<{ correct: boolean; explanation: string }> {
+    const prompt = `I'm an English learner. I read this text and answered a question.
+    
+Text: "${text.substring(0, 1500)}"
+
+Question: "${question}"
+My answer: "${userAnswer}"
+
+Is my answer correct based on the text? Reply with a JSON object: {"correct": true/false, "explanation": "short explanation in Spanish of why"}
+If my answer is wrong, explain what the correct answer would be.`;
+    const response = await callOllama(prompt, "You are a helpful English teacher. Return ONLY valid JSON.");
+    try {
+        const jsonStart = response.indexOf('{');
+        const jsonEnd = response.lastIndexOf('}') + 1;
+        const jsonStr = response.substring(jsonStart, jsonEnd);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        return { correct: false, explanation: 'Could not evaluate. Re-read the text to verify.' };
+    }
+}
+
 // Emulación del sistema de chat de Gemini para Ollama
 export async function createChatSession() {
     let history: { role: string, content: string }[] = [
@@ -238,3 +276,4 @@ export async function createChatSession() {
         }
     };
 }
+
