@@ -12,6 +12,7 @@ import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
 import { interactiveGrammarLesson } from './grammarLessons.js';
+import { interactiveReadingComprehension } from './readingComprehension.js';
 import { newsReader } from './newsReader.js';
 
 const args = process.argv.slice(2);
@@ -83,6 +84,7 @@ async function mainMenu(): Promise<void> {
         { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
       { name: '📚 Grammar Lessons (Tenses + Exercises)', value: 'grammar' },
+      { name: '📖 Reading Comprehension (Text + Questions)', value: 'reading' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
         new inquirer.Separator(),
@@ -114,6 +116,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'grammar':
         await interactiveGrammarLesson();
+        break;
+    case 'reading':
+        await interactiveReadingComprehension();
         break;
     case 'podcast':
         await interactivePodcastSession();
