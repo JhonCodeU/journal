@@ -88,10 +88,13 @@ async function playAudio(audioUrl: string, id: string): Promise<void> {
 
   return new Promise((resolve) => {
     console.log(chalk.gray('  Controls: Space(pause) · ←/→(10s) · ↑/↓(1min) · Esc(stop)\n'));
+    // Pass the real TTY so ffplay gets keyboard input directly
+    let tty: number | undefined;
+    try { tty = fs.openSync('/dev/tty', 'r+'); } catch {}
     const player = spawn('ffplay', ['-nodisp', '-autoexit', cachePath], {
-      stdio: 'inherit',
+      stdio: tty !== undefined ? [tty, 'inherit', 'inherit'] : ['inherit', 'inherit', 'inherit'],
     });
-    player.on('close', () => resolve());
+    player.on('close', () => { if (tty !== undefined) fs.closeSync(tty); resolve(); });
   });
 }
 
