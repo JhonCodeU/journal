@@ -2,7 +2,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { spawn } from 'child_process';
 import { addXP } from './statsManager.js';
-import { getKeyVocabulary, evaluateAnswer, checkAPIKey } from './aiManager.js';
+import { getKeyVocabulary, evaluateAnswer } from './aiManager.js';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
@@ -97,31 +97,16 @@ async function playAudio(audioUrl: string, id: string): Promise<void> {
   });
 }
 
-// ── Pre-reading vocabulary ──────────────────────────────────────
-async function showVocabulary(text: string, title: string): Promise<void> {
-  console.log(chalk.cyan.bold('\n📝 Key Vocabulary for this text:\n'));
-  const vocab = await getKeyVocabulary(text);
-  if (vocab.length === 0) {
-    console.log(chalk.gray('  (Could not load vocabulary preview)\n'));
-    return;
-  }
-  for (const v of vocab) {
-    console.log(chalk.yellow(`  ${v.word}`) + chalk.white(` — ${v.translation}`));
-  }
-  console.log('');
-  await inquirer.prompt([{ type: 'input', name: '_', message: 'Press Enter to continue...' }]);
-}
-
 // ── Study session ────────────────────────────────────────────────
 async function audioAction(reading: Reading): Promise<void> {
   console.log(chalk.magenta.bold(`\n📖 ${reading.title}`));
   console.log(chalk.gray(`Level: ${reading.level}`));
   console.log(chalk.blue('═'.repeat(56)));
 
-  // Step 1: Show vocabulary preview
-  await showVocabulary(reading.text, reading.title);
+  // Start loading vocabulary in the background while user reads/listens
+  const vocabPromise = getKeyVocabulary(reading.text);
 
-  // Step 2: Choose study method
+  // Step 1: Choose study method
   const { action } = await inquirer.prompt([
     {
       type: 'select',
@@ -151,6 +136,16 @@ async function audioAction(reading: Reading): Promise<void> {
       { type: 'confirm', name: 'listen', message: 'Would you like to listen to the audio too?', default: false },
     ]);
     if (listen) await playAudio(audioUrl, reading.id);
+  }
+
+  // Show vocabulary (should be ready now since it loaded in background)
+  console.log(chalk.cyan.bold('\n📝 Key Vocabulary:\n'));
+  const vocab = await vocabPromise;
+  if (vocab.length > 0) {
+    for (const v of vocab) {
+      console.log(chalk.yellow(`  ${v.word}`) + chalk.white(` — ${v.translation}`));
+    }
+    await inquirer.prompt([{ type: 'input', name: '_', message: '\nPress Enter to start questions...' }]);
   }
 
   console.log(chalk.blue('\n' + '═'.repeat(56)));
