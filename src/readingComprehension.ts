@@ -1,6 +1,62 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { spawn } from 'child_process';
 import { addXP } from './statsManager.js';
+import path from 'path';
+import fs from 'fs';
+import http from 'http';
+import https from 'https';
+
+const AUDIO_CACHE_DIR = path.join(import.meta.dirname, '..', 'data', 'audio-cache');
+
+function getAudioUrl(readingId: string): string {
+  return `https://continuingstudies.uvic.ca/upload/elc/studyzone/200-stories-cam/${readingId}.ogg`;
+}
+
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const protocol = url.startsWith('https') ? https : http;
+    protocol.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`HTTP ${response.statusCode}`));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => { file.close(); resolve(); });
+    }).on('error', (err) => {
+      fs.unlink(dest, () => {});
+      reject(err);
+    });
+  });
+}
+
+async function playAudio(readingId: string): Promise<void> {
+  const audioUrl = getAudioUrl(readingId);
+  const filename = `${readingId}.ogg`;
+  const cachePath = path.join(AUDIO_CACHE_DIR, filename);
+
+  // Download if not cached
+  if (!fs.existsSync(cachePath)) {
+    console.log(chalk.blue('\n⏬ Downloading audio...'));
+    fs.mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
+    try {
+      await downloadFile(audioUrl, cachePath);
+      console.log(chalk.green('  ✔ Downloaded! Playing...\n'));
+    } catch {
+      console.log(chalk.yellow('  ⚠️  Could not download audio. Skipping.\n'));
+      return;
+    }
+  }
+
+  // Play with ffplay (non-blocking, auto-exit)
+  return new Promise((resolve) => {
+    const player = spawn('ffplay', ['-nodisp', '-autoexit', cachePath], {
+      stdio: 'ignore',
+    });
+    player.on('close', () => resolve());
+  });
+}
 
 interface Question {
   question: string;
@@ -291,15 +347,49 @@ Good email etiquette shows respect for others and helps you communicate effectiv
   },
 ];
 
-async function runReading(reading: Reading): Promise<void> {
-  console.clear();
+async function audioAction(reading: Reading): Promise<void> {
   console.log(chalk.magenta.bold(`\n📖 ${reading.title}`));
   console.log(chalk.gray(`Level: ${reading.level}`));
   console.log(chalk.blue('═'.repeat(56)));
 
-  // Show text
-  console.log(chalk.cyan.bold('\nRead the text below:\n'));
-  console.log(chalk.white(reading.text));
+  const { action } = await inquirer.prompt([
+    {
+      type: 'select',
+      name: 'action',
+      message: 'How would you like to study?',
+      choices: [
+        { name: '🎧  Listen to audio first', value: 'audio' },
+        { name: '📖  Read the text first', value: 'read' },
+        { name: '↩️  Back', value: 'back' },
+      ],
+    },
+  ]);
+
+  if (action === 'back') return;
+
+  if (action === 'audio') {
+    await playAudio(reading.id);
+    console.log(chalk.cyan.bold('\nRead the text below:\n'));
+    console.log(chalk.white(reading.text));
+  } else {
+    console.log(chalk.cyan.bold('\nRead the text below:\n'));
+    console.log(chalk.white(reading.text));
+    console.log(chalk.blue('\n' + '═'.repeat(56)));
+
+    const { listen } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'listen',
+        message: 'Would you like to listen to the audio too?',
+        default: false,
+      },
+    ]);
+
+    if (listen) {
+      await playAudio(reading.id);
+    }
+  }
+
   console.log(chalk.blue('\n' + '═'.repeat(56)));
 
   const { ready } = await inquirer.prompt([
@@ -377,5 +467,5 @@ export async function interactiveReadingComprehension(): Promise<void> {
   if (readingId === 'back') return;
 
   const reading = READINGS.find((r) => r.id === readingId)!;
-  await runReading(reading);
+  await audioAction(reading);
 }
