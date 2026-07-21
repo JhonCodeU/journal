@@ -79,7 +79,7 @@ export async function generateSentenceAudio(text: string, force: boolean = false
 
       const stream = await client.textToSpeech.convert(voiceId, {
         text: cleanText,
-        modelId: 'eleven_multilingual_v2',
+        modelId: 'eleven_flash_v2',
         outputFormat: 'mp3_44100_128',
       });
 
