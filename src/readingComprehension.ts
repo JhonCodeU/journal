@@ -166,7 +166,7 @@ async function audioAction(reading: Reading): Promise<void> {
 
     const { answer } = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'answer',
         message: 'Choose the best answer:',
         choices: q.options.map((opt, idx) => ({ name: `${opt}`, value: idx })),

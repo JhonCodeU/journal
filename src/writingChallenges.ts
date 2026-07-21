@@ -55,7 +55,7 @@ export async function interactiveWritingChallenge(): Promise<void> {
         console.log(chalk.cyan.bold('-----------------------------\n'));
 
         const { action } = await inquirer.prompt([{
-            type: 'list',
+            type: 'select',
             name: 'action',
             message: 'Actions:',
             choices: [
