@@ -10,7 +10,7 @@ import { interactiveMusicSession } from './music.js';
 import { reviewSession, getWordsToReview, practiceSentences, quickReview } from './srs.js';
 import { updateStreak, getStatsDisplay, addXP } from './statsManager.js';
 import { createChatSession, checkAPIKey } from './aiManager.js';
-import { openPDFHub, openWebReader } from './readerManager.js';
+import { openBookHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
@@ -79,7 +79,7 @@ async function mainMenu(): Promise<void> {
       message: 'What would you like to do?',
       choices: [
       { name: '🎵 Learn with Music (Interactive)', value: 'music' },
-        { name: '📖 PDF Reader (Books)', value: 'pdf' },
+        { name: '📖 Books (EPUB/PDF)', value: 'pdf' },
         { name: '🌐 Web Reader (Articles)', value: 'web' },
         { name: '📰 News Reader (RSS)', value: 'news' },
         { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
@@ -103,7 +103,7 @@ async function mainMenu(): Promise<void> {
 
   switch (answers.action) {
     case 'pdf':
-        await openPDFHub();
+        await openBookHub();
         break;
     case 'web':
         await openWebReader();

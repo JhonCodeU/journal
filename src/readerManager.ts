@@ -1,36 +1,22 @@
 import fs from 'fs';
-import pathNode from 'path';
-import { PDFParse } from 'pdf-parse';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { ReadingProgress } from './types.js';
+import { Book } from './book/types.js';
+import { 
+  createReader, 
+  getCurrentBookId, 
+  getBookProgress, 
+  initBookProgress, 
+  setCurrentBook, 
+  saveSentenceProgress, 
+  getAllBooks,
+} from './book/index.js';
 import { getStylisticFeedback, simplifyToA2, getPageAnalysis, getBatchTranslations, getPodcastVocab, translatePhrase } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { commonWords } from './vocabulary.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
-import { splitIntoSentences } from './sentenceSplitter.js';
-import { generateSentenceAudio, playAudioFile, stopAudio, togglePauseAudio, currentAudioProcess } from './ttsManager.js';
-
-const PROGRESS_FILE = './data/reading_progress.json';
-
-const INITIAL_PROGRESS: ReadingProgress = {
-    currentBook: null,
-    books: {}
-};
-
-function getProgress(): ReadingProgress {
-    if (!fs.existsSync(PROGRESS_FILE)) return INITIAL_PROGRESS;
-    try {
-        return JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8'));
-    } catch {
-        return INITIAL_PROGRESS;
-    }
-}
-
-function saveProgress(progress: ReadingProgress) {
-    fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
-}
+import { generateSentenceAudio, playAudioFile, stopAudio, currentAudioProcess } from './ttsManager.js';
 
 // ─── Vocabulario y Highlighting ──────────────────────────────────────────────
 
@@ -82,13 +68,10 @@ function extractContextSentence(text: string, word: string): string {
 
 async function batchSavePageVocab(words: string[], pageText: string): Promise<void> {
     if (words.length === 0) return;
-
     const wordsToShow = words.slice(0, 25);
-
     console.log(chalk.blue('  Obteniendo traducciones...'));
     const translations = await getBatchTranslations(wordsToShow);
     const transMap = new Map(translations.map(t => [t.word.toLowerCase(), t.translation]));
-
     const { selectedWords } = await inquirer.prompt([{
         type: 'checkbox',
         name: 'selectedWords',
@@ -101,12 +84,10 @@ async function batchSavePageVocab(words: string[], pageText: string): Promise<vo
         loop: false,
         pageSize: 15,
     }]);
-
     if (selectedWords.length === 0) {
         console.log(chalk.dim('  Ninguna palabra guardada.\n'));
         return;
     }
-
     let saved = 0;
     for (const word of selectedWords) {
         const translation = transMap.get(word.toLowerCase());
@@ -125,12 +106,10 @@ async function batchSavePageVocab(words: string[], pageText: string): Promise<vo
 async function extractPageVocabAI(pageText: string): Promise<void> {
     console.log(chalk.blue('\nLa IA está seleccionando las palabras más útiles...'));
     const aiWords = await getPodcastVocab(pageText.substring(0, 3000));
-
     if (aiWords.length === 0) {
         console.log(chalk.red('No se pudieron extraer palabras con IA.\n'));
         return;
     }
-
     const { selectedIndices } = await inquirer.prompt([{
         type: 'checkbox',
         name: 'selectedIndices',
@@ -141,7 +120,6 @@ async function extractPageVocabAI(pageText: string): Promise<void> {
         })),
         default: aiWords.map((_, i) => i)
     }]);
-
     let saved = 0;
     for (const index of selectedIndices) {
         const { word, translation } = aiWords[index];
@@ -153,39 +131,46 @@ async function extractPageVocabAI(pageText: string): Promise<void> {
     if (saved > 0) addXP(saved * 10);
 }
 
-// --- PDF READER SECTION ---
+// ─── Book Hub ──────────────────────────────────────────────────────
 
-export async function openPDFHub() {
+export async function openBookHub() {
     try {
-        const progress = getProgress();
-        
         const choices = [
             { name: '📖 Continuar Leyendo', value: 'continue' },
-            { name: '➕ Abrir Nuevo PDF', value: 'open' },
+            { name: '📂 Abrir EPUB', value: 'open_epub' },
+            { name: '📕 Abrir PDF', value: 'open_pdf' },
             { name: '📚 Mi Biblioteca', value: 'library' },
             new inquirer.Separator(),
             { name: 'Volver', value: 'back' }
         ];
 
-        const { action } = await inquirer.prompt([
-            {
-                type: 'select',
-                name: 'action',
-                message: 'Biblioteca PDF:',
-                choices
-            }
-        ]);
+        const { action } = await inquirer.prompt([{
+            type: 'select',
+            name: 'action',
+            message: '📚 Books:',
+            choices
+        }]);
 
         switch (action) {
-            case 'continue':
-                if (!progress.currentBook) {
+            case 'continue': {
+                const currentId = getCurrentBookId();
+                if (!currentId) {
                     console.log(chalk.yellow('\nNo hay ningún libro abierto.\n'));
-                    return openPDFHub();
+                    return openBookHub();
                 }
-                await readBook(progress.currentBook);
+                const found = getBookProgress(currentId);
+                if (!found) {
+                    console.log(chalk.yellow('\nEl libro ya no está disponible.\n'));
+                    return openBookHub();
+                }
+                await readBook(currentId);
                 break;
-            case 'open':
-                await openNewPDF();
+            }
+            case 'open_epub':
+                await openFile('epub');
+                break;
+            case 'open_pdf':
+                await openFile('pdf');
                 break;
             case 'library':
                 await showLibrary();
@@ -194,158 +179,78 @@ export async function openPDFHub() {
                 return;
         }
     } catch (error: any) {
-        console.error(chalk.red(`\nError en el Hub de PDF: ${error.message}`));
+        console.error(chalk.red(`\nError: ${error.message}`));
     }
 }
 
-// --- WEB READER SECTION ---
-
-export async function openWebReader() {
-    const { url } = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'url',
-            message: 'Introduce la URL del artículo:',
-            validate: (input) => input.startsWith('http') ? true : 'Por favor, introduce una URL válida.'
+async function openFile(format: 'epub' | 'pdf') {
+    const { filePath } = await inquirer.prompt([{
+        type: 'input',
+        name: 'filePath',
+        message: `Introduce la ruta al archivo .${format}:`,
+        validate: (input: string) => {
+            if (!fs.existsSync(input)) return 'El archivo no existe.';
+            if (!input.toLowerCase().endsWith(`.${format}`)) return `Debe ser un archivo .${format}`;
+            return true;
         }
-    ]);
+    }]);
 
-    const article = await fetchArticle(url);
-    if (article) {
-        const pages = article.pages.map((text, i) => ({
-            text,
-            num: i + 1,
-        }));
-        await displayReader(article.title, pages);
-    }
+    const reader = createReader(filePath);
+    const meta = reader.getMetadata();
+    console.log(chalk.blue(`\nCargando "${meta.title}"...`));
+    const book = await reader.load();
+    
+    initBookProgress(book.id, book.totalChapters, book.totalSentences, filePath);
+    setCurrentBook(book.id);
+    
+    console.log(chalk.green(`\n¡"${book.title}" cargado! (${book.totalChapters} capítulos, ${book.totalSentences} oraciones)\n`));
+    await sentenceReader(book, 0, 0);
 }
 
-// --- SHARED CORE LOGIC ---
-
-async function openNewPDF() {
-    const { filePath } = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'filePath',
-            message: 'Introduce la ruta al archivo PDF:',
-            validate: (input) => fs.existsSync(input) && input.endsWith('.pdf') ? true : 'Por favor, introduce una ruta de PDF válida.'
-        }
-    ]);
-
-    const dataBuffer = fs.readFileSync(filePath);
-    try {
-        console.log(chalk.blue('\nAnalizando PDF...'));
-        const parser = new PDFParse({ data: dataBuffer });
-        const data = await parser.getText();
-        
-        const title = pathNode.basename(filePath);
-        const progress = getProgress();
-
-        progress.books[title] = {
-            totalPages: data.total,
-            lastPageRead: 1,
-            lastSentenceRead: 0,
-            totalSentences: 0, // se actualiza al abrir
-            path: pathNode.resolve(filePath)
-        };
-        progress.currentBook = title;
-        saveProgress(progress);
-
-        console.log(chalk.green(`\n¡Éxito! "${title}" añadido a tu biblioteca.`));
-        await readBook(title);
-    } catch (error: any) {
-        console.log(chalk.red(`\nError leyendo PDF: ${error.message}`));
+async function readBook(bookId: string) {
+    const progress = getBookProgress(bookId);
+    if (!progress) {
+        console.log(chalk.red('\nNo se encontró el progreso del libro.\n'));
+        return;
     }
-}
-
-async function readBook(title: string) {
-    try {
-        const progress = getProgress();
-        const book = progress.books[title];
-        
-        if (!fs.existsSync(book.path)) {
-            console.log(chalk.red(`\nError: No se encontró el archivo en ${book.path}`));
-            return;
-        }
-
-        console.log(chalk.blue(`\nCargando "${title}"...`));
-        const dataBuffer = fs.readFileSync(book.path);
-        
-        console.log(chalk.blue('Analizando contenido del PDF...'));
-        const parser = new (PDFParse as any)({ data: dataBuffer });
-        const data = await parser.getText();
-        
-        const pages = data.pages;
-        console.log(chalk.green('¡Listo!\n'));
-
-        // Usar la última oración leída como punto de partida
-        const startSentence = book.lastSentenceRead || 0;
-        await displayReader(title, pages, startSentence, true);
-    } catch (error: any) {
-        console.error(chalk.red(`\nError al abrir el libro: ${error.message}`));
-    }
-}
-
-/**
- * displayReader: convierte páginas en oraciones y muestra el modo oración.
- */
-async function displayReader(title: string, pages: any[], startIndex: number = 0, isBook: boolean = false) {
-    // Combinar todo el texto de todas las páginas
-    const allText = pages
-        .map((p: any) => p.text)
-        .join('\n\n')
-        .replace(/\n+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const sentences = splitIntoSentences(allText);
-
-    if (sentences.length === 0) {
-        console.log(chalk.red('No se encontraron oraciones en este texto.\n'));
+    if (!fs.existsSync(progress.path)) {
+        console.log(chalk.red(`\nError: No se encontró el archivo en ${progress.path}\n`));
         return;
     }
 
-    // Actualizar el total de oraciones en el progreso (si es libro)
-    if (isBook) {
-        const progress = getProgress();
-        if (progress.books[title]) {
-            progress.books[title].totalSentences = sentences.length;
-            saveProgress(progress);
-        }
-    }
+    console.log(chalk.blue(`\nCargando libro...`));
+    const reader = createReader(progress.path);
+    const book = await reader.load();
+    
+    // Resume from saved position
+    let startSentence = progress.lastSentenceRead;
+    if (startSentence >= book.totalSentences) startSentence = 0;
+    const startChapter = book.sentences[startSentence]?.chapterIndex || 0;
 
-    // Asegurar que startIndex esté en rango
-    let currentSentence = Math.min(startIndex, sentences.length - 1);
-
-    await sentenceReader(title, sentences, currentSentence, isBook);
+    await sentenceReader(book, startSentence, startChapter);
 }
 
-/**
- * sentenceReader: loop principal navegando oración por oración.
- */
-async function sentenceReader(
-    title: string,
-    sentences: string[],
-    startIndex: number,
-    isBook: boolean,
-) {
-    let current = startIndex;
-    let shadowingMode = false;
+// ─── Sentence Reader Loop ──────────────────────────────────────────
 
-    while (current < sentences.length) {
-        const sentenceText = sentences[current];
+async function sentenceReader(book: Book, startSentence: number, startChapter: number) {
+    let current = startSentence;
+
+    while (current < book.totalSentences) {
+        const sentence = book.sentences[current];
+        const chapter = book.chapters[sentence.chapterIndex];
+        const sentenceText = sentence.text;
         const uncommon = extractUncommonWordsFromText(sentenceText);
 
         console.clear();
-        // ── Header ──
-        console.log(chalk.blue.bold(`\n📖 ${title}`));
-        console.log(chalk.gray(`Sentence ${current + 1} / ${sentences.length}`));
+        // ── Header with chapter info ──
+        console.log(chalk.blue.bold(`\n📖 ${book.title}`));
+        console.log(chalk.gray(`${chapter.title} — Sentence ${current + 1} / ${book.totalSentences}`));
         console.log(chalk.cyan('═'.repeat(50)));
 
-        // ── Texto resaltado ──
+        // ── Highlighted text ──
         console.log(`\n${highlightDifficultWords(sentenceText)}\n`);
 
-        // ── Palabras nuevas ──
+        // ── New words ──
         if (uncommon.length > 0) {
             const displayWords = uncommon.slice(0, 8);
             console.log(chalk.yellow(`📝 ${uncommon.length} palabra${uncommon.length !== 1 ? 's' : ''} nueva${uncommon.length !== 1 ? 's' : ''}: `) +
@@ -358,9 +263,7 @@ async function sentenceReader(
         console.log(chalk.cyan('═'.repeat(50)));
 
         // ── Footer ──
-        const audioIndicator = currentAudioProcess
-            ? chalk.green('🔊')
-            : chalk.dim('🔇');
+        const audioIndicator = currentAudioProcess ? chalk.green('🔊') : chalk.dim('🔇');
 
         console.log(chalk.italic.gray('\n') +
             chalk.white('  ◀ Prev') + chalk.gray(' (←/p) ') +
@@ -383,34 +286,24 @@ async function sentenceReader(
             filter: (input: string) => input.trim().toLowerCase().slice(0, 1)
         }]);
 
-        // ── Manejo de acciones ──
+        // ── Actions ──
         if (raw === '→' || raw === 'l' || raw === 'n') {
-            if (uncommon.length > 0) {
-                const { saveVocab } = await inquirer.prompt([{
-                    type: 'confirm',
-                    name: 'saveVocab',
-                    message: `📚 ¿Guardar ${uncommon.length} palabra${uncommon.length !== 1 ? 's' : ''} al vocabulario?`,
-                    default: false,
-                }]);
-                if (saveVocab) {
-                    await batchSavePageVocab(uncommon, sentenceText);
-                }
-            }
-            if (current < sentences.length - 1) {
+            await maybeSaveVocab(uncommon, sentenceText);
+            if (current < book.totalSentences - 1) {
                 current++;
-                saveSentenceProgress(title, current, isBook);
-                // Precargar audio de siguiente oración en background
-                if (current + 1 < sentences.length) {
-                    generateSentenceAudio(sentences[current]).catch(() => {});
+                saveSentenceProgress(book.id, current, sentence.chapterIndex);
+                addXP(5);
+                // Precargar siguiente audio
+                if (current + 1 < book.totalSentences) {
+                    generateSentenceAudio(book.sentences[current].text).catch(() => {});
                 }
             }
         } else if (raw === '←' || raw === 'h' || raw === 'p') {
             if (current > 0) {
                 current--;
-                saveSentenceProgress(title, current, isBook);
+                saveSentenceProgress(book.id, current, sentence.chapterIndex);
             }
         } else if (raw === 's') {
-            // Play / repeat audio
             await playCurrentSentenceAudio(sentenceText);
         } else if (raw === 'm') {
             await markSentenceDifficult(sentenceText, uncommon);
@@ -429,18 +322,30 @@ async function sentenceReader(
         } else if (raw === 'x' || raw === 'q') {
             stopAudio();
             break;
-        }
-        // Si el usuario presiona Enter sin escribir, siguiente oración
-        else if (raw === '') {
-            if (current < sentences.length - 1) {
+        } else if (raw === '') {
+            if (current < book.totalSentences - 1) {
                 current++;
-                saveSentenceProgress(title, current, isBook);
+                saveSentenceProgress(book.id, current, sentence.chapterIndex);
+                addXP(5);
             }
         }
     }
 }
 
-// ─── Acciones de oración ─────────────────────────────────────────────
+// ─── Acciones ──────────────────────────────────────────────────────
+
+async function maybeSaveVocab(uncommon: string[], text: string) {
+    if (uncommon.length === 0) return;
+    const { saveVocab } = await inquirer.prompt([{
+        type: 'confirm',
+        name: 'saveVocab',
+        message: `📚 ¿Guardar ${uncommon.length} palabra${uncommon.length !== 1 ? 's' : ''} al vocabulario?`,
+        default: false,
+    }]);
+    if (saveVocab) {
+        await batchSavePageVocab(uncommon, text);
+    }
+}
 
 async function playCurrentSentenceAudio(text: string) {
     try {
@@ -454,36 +359,33 @@ async function playCurrentSentenceAudio(text: string) {
 }
 
 async function markSentenceDifficult(text: string, uncommon: string[]) {
-    // Si hay palabras nuevas, preguntar cuáles guardar
-    if (uncommon.length > 0) {
-        const wordsToShow = uncommon.slice(0, 15);
-        const translations = await getBatchTranslations(wordsToShow);
-        const transMap = new Map(translations.map(t => [t.word.toLowerCase(), t.translation]));
-
-        const { selectedWords } = await inquirer.prompt([{
-            type: 'checkbox',
-            name: 'selectedWords',
-            message: `★ Marcar como difícil — guardar palabras:`,
-            choices: wordsToShow.map(w => ({
-                name: `${w} ${chalk.dim('→')} ${transMap.get(w.toLowerCase()) || '?'}`,
-                value: w,
-                checked: true
-            })),
-            pageSize: 15
-        }]);
-
-        for (const word of selectedWords) {
-            const translation = transMap.get(word.toLowerCase());
-            if (translation) {
-                await saveWord({ word, translation, context: text.substring(0, 120) });
-            }
-        }
-        if (selectedWords.length > 0) {
-            console.log(chalk.green(`\n✔ ${selectedWords.length} palabras guardadas.\n`));
-            addXP(selectedWords.length * 10);
-        }
-    } else {
+    if (uncommon.length === 0) {
         console.log(chalk.yellow('  No hay palabras nuevas en esta oración.\n'));
+        return;
+    }
+    const wordsToShow = uncommon.slice(0, 15);
+    const translations = await getBatchTranslations(wordsToShow);
+    const transMap = new Map(translations.map(t => [t.word.toLowerCase(), t.translation]));
+    const { selectedWords } = await inquirer.prompt([{
+        type: 'checkbox',
+        name: 'selectedWords',
+        message: `★ Guardar palabras:`,
+        choices: wordsToShow.map(w => ({
+            name: `${w} ${chalk.dim('→')} ${transMap.get(w.toLowerCase()) || '?'}`,
+            value: w,
+            checked: true
+        })),
+        pageSize: 15
+    }]);
+    for (const word of selectedWords) {
+        const translation = transMap.get(word.toLowerCase());
+        if (translation) {
+            await saveWord({ word, translation, context: text.substring(0, 120) });
+        }
+    }
+    if (selectedWords.length > 0) {
+        console.log(chalk.green(`\n✔ ${selectedWords.length} palabras guardadas.\n`));
+        addXP(selectedWords.length * 10);
     }
 }
 
@@ -511,8 +413,6 @@ async function shadowingSentence(text: string) {
         const path = await generateSentenceAudio(text);
         console.log(chalk.green('  ▶️  Escucha...\n'));
         playAudioFile(path);
-
-        // Esperar a que termine la reproducción
         await new Promise<void>((resolve) => {
             const check = setInterval(() => {
                 if (!currentAudioProcess) {
@@ -521,14 +421,9 @@ async function shadowingSentence(text: string) {
                 }
             }, 200);
         });
-
         console.log(chalk.yellow.bold('\n  🎤 Ahora repite en voz alta.'));
         console.log(chalk.italic.gray(`  "${text}"\n`));
-        await inquirer.prompt([{
-            type: 'input',
-            name: 'wait',
-            message: '  Presiona Enter cuando termines de repetir...'
-        }]);
+        await inquirer.prompt([{ type: 'input', name: 'wait', message: '  Presiona Enter cuando termines de repetir...' }]);
         console.log(chalk.green('  ✅ ¡Buen trabajo!\n'));
         addXP(15);
     } catch (e: any) {
@@ -548,20 +443,11 @@ async function sentenceVocabMenu(text: string, uncommon: string[]) {
             { name: '↩️ Volver', value: 'back' }
         ]
     }]);
-
-    if (action === 'save') {
-        await batchSavePageVocab(uncommon, text);
-    } else if (action === 'ai') {
-        await extractPageVocabAI(text);
-    } else if (action === 'lookup') {
-        const { word } = await inquirer.prompt([{
-            type: 'input',
-            name: 'word',
-            message: '🔍 Palabra o frase:',
-        }]);
-        if (word.trim()) {
-            await lookupWordInteraction(word.trim(), text);
-        }
+    if (action === 'save') await batchSavePageVocab(uncommon, text);
+    else if (action === 'ai') await extractPageVocabAI(text);
+    else if (action === 'lookup') {
+        const { word } = await inquirer.prompt([{ type: 'input', name: 'word', message: '🔍 ' }]);
+        if (word.trim()) await lookupWordInteraction(word.trim(), text);
     }
 }
 
@@ -587,45 +473,14 @@ async function lookupWordInteraction(word: string, context: string) {
     const cleanWord = word.trim();
     const sentenceContext = extractContextSentence(context, cleanWord);
     const isPhrase = cleanWord.split(/\s+/).length > 1;
-
     if (isPhrase) {
         const translation = await translatePhrase(cleanWord, sentenceContext);
         console.log(chalk.green(`\n  "${cleanWord}" → ${translation}`));
-        if (sentenceContext) {
-            console.log(chalk.dim(`  Contexto: "${sentenceContext}"`));
-        }
-        const singleWords = cleanWord.split(/\s+/).filter(w => w.length > 2);
+        const singleWords = cleanWord.split(/\s+/).filter((w: any) => w.length > 2);
         if (singleWords.length > 0) {
-            console.log(chalk.dim('\n  Palabras individuales:'));
             const wordTranslations = await getBatchTranslations(singleWords);
             for (const wt of wordTranslations) {
-                if (wt.translation) {
-                    console.log(chalk.dim(`    ${wt.word} → ${wt.translation}`));
-                }
-            }
-            const toSave = wordTranslations.filter(wt => wt.translation);
-            if (toSave.length > 0) {
-                const { savePhraseWords } = await inquirer.prompt([{
-                    type: 'checkbox',
-                    name: 'savePhraseWords',
-                    message: '📚 ¿Guardar palabras al vocabulario?',
-                    choices: toSave.map(wt => ({
-                        name: `${wt.word} → ${wt.translation}`,
-                        value: wt.word,
-                        checked: false
-                    })),
-                    pageSize: 10
-                }]);
-                if (savePhraseWords.length > 0) {
-                    for (const w of savePhraseWords) {
-                        const wt = toSave.find(t => t.word === w);
-                        if (wt) {
-                            await saveWord({ word: wt.word, translation: wt.translation, context: extractContextSentence(context, w) });
-                        }
-                    }
-                    console.log(chalk.green(`\n✔ ${savePhraseWords.length} palabras guardadas.\n`));
-                    addXP(savePhraseWords.length * 10);
-                }
+                if (wt.translation) console.log(chalk.dim(`    ${wt.word} → ${wt.translation}`));
             }
         }
     } else {
@@ -633,77 +488,98 @@ async function lookupWordInteraction(word: string, context: string) {
         if (translations[0]?.translation) {
             const translation = translations[0].translation;
             console.log(chalk.green(`\n  ${cleanWord} → ${translation}`));
-            if (sentenceContext) {
-                console.log(chalk.dim(`  Contexto: "${sentenceContext}"`));
-            }
             const { markAction } = await inquirer.prompt([{
-                type: 'select',
-                name: 'markAction',
-                message: '¿Qué quieres hacer?',
+                type: 'select', name: 'markAction', message: '¿Qué haces?',
                 choices: [
                     { name: '✅ Marcar como conocida', value: 'mark' },
                     { name: '💾 Guardar en vocabulario', value: 'save' },
                     { name: '↩️ Volver', value: 'back' }
                 ]
             }]);
-            if (markAction === 'mark') {
-                await markWordAsKnown(cleanWord, translation, sentenceContext);
-            } else if (markAction === 'save') {
-                await saveWord({ word: cleanWord, translation, context: sentenceContext });
-                addXP(10);
-            }
+            if (markAction === 'mark') await markWordAsKnown(cleanWord, translation, sentenceContext);
+            else if (markAction === 'save') { await saveWord({ word: cleanWord, translation, context: sentenceContext }); addXP(10); }
         } else {
-            console.log(chalk.yellow(`\n  "${cleanWord}" no reconocida.`));
             const { markAction } = await inquirer.prompt([{
-                type: 'select',
-                name: 'markAction',
-                message: '¿Qué quieres hacer?',
+                type: 'select', name: 'markAction', message: '¿Qué haces?',
                 choices: [
                     { name: '✅ Marcar como conocida', value: 'mark' },
                     { name: '↩️ Volver', value: 'back' }
                 ]
             }]);
-            if (markAction === 'mark') {
-                await markWordAsKnown(cleanWord, cleanWord, sentenceContext);
-            }
+            if (markAction === 'mark') await markWordAsKnown(cleanWord, cleanWord, sentenceContext);
         }
     }
 }
 
-// ─── Utilidades ──────────────────────────────────────────────────────
-
-function saveSentenceProgress(title: string, sentenceIndex: number, isBook: boolean) {
-    if (!isBook) return;
-    const progress = getProgress();
-    if (progress.books[title]) {
-        progress.books[title].lastSentenceRead = sentenceIndex;
-        saveProgress(progress);
-    }
-    addXP(5);
-}
+// ─── Library ───────────────────────────────────────────────────────
 
 async function showLibrary() {
-    const progress = getProgress();
-    const bookTitles = Object.keys(progress.books);
-
-    if (bookTitles.length === 0) {
+    const books = getAllBooks();
+    const entries = Object.entries(books);
+    if (entries.length === 0) {
         console.log(chalk.yellow('\nTu biblioteca está vacía.\n'));
         return;
     }
+    const { selectedId } = await inquirer.prompt([{
+        type: 'select',
+        name: 'selectedId',
+        message: 'Selecciona un libro:',
+        choices: [
+            ...entries.map(([id, info]) => ({
+                name: `${id} ${chalk.dim(`(${info.lastSentenceRead}/${info.totalSentences} oraciones)`)}`,
+                value: id
+            })),
+            { name: 'Volver', value: 'back' }
+        ]
+    }]);
+    if (selectedId === 'back') return;
+    setCurrentBook(selectedId);
+    await readBook(selectedId);
+}
 
-    const { selectedTitle } = await inquirer.prompt([
-        {
-            type: 'select',
-            name: 'selectedTitle',
-            message: 'Selecciona un libro para leer:',
-            choices: [...bookTitles, 'Volver']
-        }
-    ]);
+/**
+ * Web Reader: read online articles sentence-by-sentence.
+ */
+export async function openWebReader() {
+    const { url } = await inquirer.prompt([{
+        type: 'input',
+        name: 'url',
+        message: 'Introduce la URL del artículo:',
+        validate: (input) => input.startsWith('http') ? true : 'Por favor, introduce una URL válida.'
+    }]);
 
-    if (selectedTitle === 'Volver') return;
-    
-    const progressUpdate = getProgress();
-    progressUpdate.currentBook = selectedTitle;
-    saveProgress(progressUpdate);
-    await readBook(selectedTitle);
+    const article = await fetchArticle(url);
+    if (!article) return;
+
+    // Build a Book-like structure from the web article
+    const sentences = article.pages.flatMap(page =>
+        page.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(s => s.trim().length > 5)
+    );
+
+    const book: Book = {
+        id: url,
+        title: article.title,
+        author: '',
+        language: 'en',
+        format: 'pdf',
+        sourcePath: url,
+        totalChapters: 1,
+        totalSentences: sentences.length,
+        chapters: [{
+            id: 'chapter-1',
+            title: article.title,
+            order: 1,
+            paragraphs: article.pages.map(text => ({ text, sentences: [text] })),
+            sentenceCount: sentences.length,
+            startSentenceIndex: 0,
+        }],
+        sentences: sentences.map((text, i) => ({
+            text,
+            chapterIndex: 0,
+            globalIndex: i,
+        })),
+        sentenceToChapter: new Array(sentences.length).fill(0),
+    };
+
+    await sentenceReader(book, 0, 0);
 }
