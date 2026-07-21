@@ -234,6 +234,7 @@ async function readBook(bookId: string) {
 
 async function sentenceReader(book: Book, startSentence: number, startChapter: number) {
     let current = startSentence;
+    let statusMessage = '';
 
     while (current < book.totalSentences) {
         const sentence = book.sentences[current];
@@ -265,6 +266,10 @@ async function sentenceReader(book: Book, startSentence: number, startChapter: n
         // ── Footer ──
         const audioIndicator = currentAudioProcess ? chalk.green('🔊') : chalk.dim('🔇');
 
+        if (statusMessage) {
+            console.log(chalk.italic(statusMessage));
+        }
+
         console.log(chalk.italic.gray('\n') +
             chalk.white('  ◀ Prev') + chalk.gray(' (←/p) ') +
             chalk.white('▶ Play') + chalk.gray(' (s) ') +
@@ -287,16 +292,13 @@ async function sentenceReader(book: Book, startSentence: number, startChapter: n
         }]);
 
         // ── Actions ──
+        statusMessage = '';
         if (raw === '→' || raw === 'l' || raw === 'n') {
             await maybeSaveVocab(uncommon, sentenceText);
             if (current < book.totalSentences - 1) {
                 current++;
                 saveSentenceProgress(book.id, current, sentence.chapterIndex);
                 addXP(5);
-                // Precargar siguiente audio
-                if (current + 1 < book.totalSentences) {
-                    generateSentenceAudio(book.sentences[current].text).catch(() => {});
-                }
             }
         } else if (raw === '←' || raw === 'h' || raw === 'p') {
             if (current > 0) {
@@ -304,9 +306,9 @@ async function sentenceReader(book: Book, startSentence: number, startChapter: n
                 saveSentenceProgress(book.id, current, sentence.chapterIndex);
             }
         } else if (raw === 's') {
-            await playCurrentSentenceAudio(sentenceText);
+            statusMessage = await playCurrentSentenceAudio(sentenceText);
         } else if (raw === 'm') {
-            await markSentenceDifficult(sentenceText, uncommon);
+            statusMessage = await markSentenceDifficult(sentenceText, uncommon);
         } else if (raw === 'e') {
             await explainSentence(sentenceText);
         } else if (raw === 't') {
@@ -347,21 +349,21 @@ async function maybeSaveVocab(uncommon: string[], text: string) {
     }
 }
 
-async function playCurrentSentenceAudio(text: string) {
+async function playCurrentSentenceAudio(text: string): Promise<string> {
     try {
         console.log(chalk.blue('  🔊 Generando audio...'));
         const path = await generateSentenceAudio(text);
         console.log(chalk.green('  ▶️  Reproduciendo...\n'));
         playAudioFile(path);
+        return '';
     } catch (e: any) {
-        console.log(chalk.red(`  Error: ${e.message}`));
+        return `⚠️  Error: ${e.message}`;
     }
 }
 
-async function markSentenceDifficult(text: string, uncommon: string[]) {
+async function markSentenceDifficult(text: string, uncommon: string[]): Promise<string> {
     if (uncommon.length === 0) {
-        console.log(chalk.yellow('  No hay palabras nuevas en esta oración.\n'));
-        return;
+        return '✅ Todas las palabras ya son conocidas.';
     }
     const wordsToShow = uncommon.slice(0, 15);
     const translations = await getBatchTranslations(wordsToShow);
@@ -384,9 +386,10 @@ async function markSentenceDifficult(text: string, uncommon: string[]) {
         }
     }
     if (selectedWords.length > 0) {
-        console.log(chalk.green(`\n✔ ${selectedWords.length} palabras guardadas.\n`));
         addXP(selectedWords.length * 10);
+        return `✔ ${selectedWords.length} palabras guardadas.`;
     }
+    return '⚠️  Ninguna palabra seleccionada.';
 }
 
 async function explainSentence(text: string) {

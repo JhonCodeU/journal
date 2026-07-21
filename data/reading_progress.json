@@ -1,10 +1,17 @@
 {
-  "currentBook": "Harry_Potter_and_the_Philosopher_Stone.pdf",
+  "currentBook": "/home/dat-pt74/Documents/NoteBook/epubs/The_Wonderful_Wizard.epub",
   "books": {
     "Harry_Potter_and_the_Philosopher_Stone.pdf": {
       "totalPages": 3623,
       "lastPageRead": 13,
-      "path": "/home/dat-pt74/Documents/NoteBook/Harry_Potter_and_the_Philosopher_Stone.pdf"
+      "path": "/home/dat-pt74/Documents/NoteBook/PDFs/Harry_Potter_and_the_Philosopher_Stone.pdf"
+    },
+    "/home/dat-pt74/Documents/NoteBook/epubs/The_Wonderful_Wizard.epub": {
+      "totalChapters": 26,
+      "totalSentences": 3072,
+      "lastSentenceRead": 1,
+      "lastChapterRead": 0,
+      "path": "/home/dat-pt74/Documents/NoteBook/epubs/The_Wonderful_Wizard.epub"
     }
   }
 }
