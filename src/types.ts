@@ -24,12 +24,21 @@ export interface UserStats {
     totalJournalEntries: number;
 }
 
+export interface SentenceData {
+    index: number;
+    text: string;
+    translation?: string;
+    explanation?: string;
+}
+
 export interface ReadingProgress {
     currentBook: string | null;
     books: {
         [title: string]: {
             totalPages: number;
             lastPageRead: number;
+            lastSentenceRead: number;
+            totalSentences: number;
             path: string;
         }
     };

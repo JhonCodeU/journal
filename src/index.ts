@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { analyzeText } from './reader.js';
