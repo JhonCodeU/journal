@@ -20,6 +20,7 @@
   "author": "John Arcila Castano",
   "license": "ISC",
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.58.0",
     "@google/genai": "^1.50.1",
     "axios": "^1.15.2",
     "chalk": "^5.6.2",
