@@ -47,9 +47,8 @@ export class EPUBBookReader implements BookReader {
       if (mt && !mt.includes('xhtml') && !mt.includes('html')) continue;
 
       let html: string;
-      try {
-        html = await epub.getChapterAsync(itemId);
-      } catch {
+      try { html = await epub.getChapterAsync(itemId); }
+      catch {
         if (!item.href) continue;
         const mid = hrefToId[item.href];
         if (!mid) continue;
@@ -61,39 +60,26 @@ export class EPUBBookReader implements BookReader {
       $('script, style, nav, header, footer, aside, svg, img, figure, noscript').remove();
 
       const h1 = $('h1').first().text().trim();
-      const h2 = $('h2').first().text().trim();
-      const prefersH2 = !!(meta.title && h1 && (
-        h1.toLowerCase() === meta.title.toLowerCase() ||
-        h1.toLowerCase().startsWith(meta.title.toLowerCase().slice(0, 15))
-      ));
-      let chapterTitle = (prefersH2 && h2) ? h2 : (h1 || h2 || item.title || '');
-
-      // Detect title page
       const isTitlePage = !!(meta.title && h1 && (
         h1.toLowerCase() === meta.title.toLowerCase() ||
         h1.toLowerCase().startsWith(meta.title.toLowerCase().slice(0, 15))
       ));
 
-      // Collect <p> elements
+      // Chapter title: use spine item title ("Chapter 2", "Chapter 4", etc.)
+      const chapterTitle = item.title || `Chapter ${order + 1}`;
+
+      // Collect <p> content
       const paragraphs: Paragraph[] = [];
       let hasLong = false;
 
       $('p').each((_: any, el: any) => {
         const t = $(el).text().trim();
         if (t.length < 20) return;
-        // Try to extract chapter title from first <p> of the chapter
-        if ((!chapterTitle || chapterTitle.length <= 2 || chapterTitle === meta.title) && paragraphs.length === 0) {
-          const m = t.match(/^Chapter\s+\w+\s+([A-Z][A-Za-z\s]+?)(?:[,.!?]|\s+(?:When|She|He|It|The|They|Our|After|You|This|All|Next|For|While|Before)|$)/);
-          if (m) {
-            chapterTitle = m[1].trim();
-          }
-        }
         if (t.length > 100) hasLong = true;
-        if (t.length < 60 && /^(Chapter|Contents|Introduction|[IVX]+\.)/i.test(t)) return;
         paragraphs.push({ text: t, sentences: [] });
       });
 
-      // Fallback: body split by double newlines
+      // Fallback: split body by double newlines
       if (!hasLong) {
         const body = $('body').text().replace(/\n+/g, '\n').trim();
         const blocks = body.split(/\n\s*\n/);
@@ -113,7 +99,6 @@ export class EPUBBookReader implements BookReader {
 
       bodyCount++;
 
-      // Build sentences from paragraphs
       let chapterCount = 0;
       for (const p of paragraphs) {
         const sent = splitIntoSentences(p.text);
@@ -130,7 +115,7 @@ export class EPUBBookReader implements BookReader {
 
       chapters.push({
         id: itemId || `ch-${order}`,
-        title: chapterTitle.length > 2 && !chapterTitle.startsWith('Chapter ') ? chapterTitle : `Chapter ${bodyCount}`,
+        title: chapterTitle,
         order: bodyCount,
         paragraphs,
         sentenceCount: chapterCount,
@@ -139,8 +124,7 @@ export class EPUBBookReader implements BookReader {
     }
 
     return {
-      id: this.sourcePath,
-      title: meta.title, author: meta.author, language: meta.language,
+      id: this.sourcePath, title: meta.title, author: meta.author, language: meta.language,
       format: 'epub', sourcePath: this.sourcePath,
       totalChapters: chapters.length, totalSentences: allSentences.length,
       chapters, sentences: allSentences, sentenceToChapter,
