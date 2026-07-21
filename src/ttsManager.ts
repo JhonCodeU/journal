@@ -17,6 +17,7 @@ const EDGE_TTS_PATH = '/home/dat-pt74/.local/bin/edge-tts';
 const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb'; // George
 
 let elevenLabsClient: any = null;
+let elevenLabsLoadAttempted = false;
 
 export let currentAudioProcess: ChildProcess | null = null;
 export let audioPaused = false;
@@ -26,10 +27,15 @@ export function hasElevenLabsKey(): boolean {
   return !!key && key.length > 0 && key !== 'your_key_here';
 }
 
-function getClient() {
-  if (!elevenLabsClient && hasElevenLabsKey()) {
-    const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
-    elevenLabsClient = new ElevenLabsClient();
+async function getClient() {
+  if (!elevenLabsClient && hasElevenLabsKey() && !elevenLabsLoadAttempted) {
+    elevenLabsLoadAttempted = true;
+    try {
+      const mod = await import('@elevenlabs/elevenlabs-js');
+      elevenLabsClient = new mod.ElevenLabsClient();
+    } catch (e: any) {
+      console.error(chalk.red(`  Error cargando ElevenLabs SDK: ${e.message}`));
+    }
   }
   return elevenLabsClient;
 }
@@ -64,7 +70,7 @@ export async function generateSentenceAudio(text: string, force: boolean = false
   const cleanText = text.replace(/\s+/g, ' ').trim();
   if (!cleanText) throw new Error('Texto vacío');
 
-  const client = getClient();
+  const client = await getClient();
 
   if (client) {
     try {
