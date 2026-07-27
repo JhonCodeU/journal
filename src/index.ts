@@ -14,6 +14,7 @@ import { openBookHub, openWebReader } from './readerManager.js';
 import { interactivePodcastSession } from './podcast.js';
 import { interactiveAudioLibrarySession, quickLatestBBC } from './audioLibrary.js';
 import { interactiveWritingChallenge } from './writingChallenges.js';
+import { interactiveFreeWriting } from './freeWriting.js';
 import { interactiveGrammarLesson } from './grammarLessons.js';
 import { interactiveReadingComprehension } from './readingComprehension.js';
 import { newsReader } from './newsReader.js';
@@ -83,6 +84,7 @@ async function mainMenu(): Promise<void> {
         { name: '🌐 Web Reader (Articles)', value: 'web' },
         { name: '📰 News Reader (RSS)', value: 'news' },
         { name: '📻 Audio Stories & News (Fast)', value: 'audio-lib' },
+        { name: '✍️  Free Writing (Your own topic)', value: 'freewriting' },
         { name: '📝 Daily Writing Challenge', value: 'writing' },
         { name: '🎙️ Podcasts (Spotify - Login)', value: 'podcast' },
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
@@ -113,6 +115,9 @@ async function mainMenu(): Promise<void> {
         break;
     case 'audio-lib':
         await interactiveAudioLibrarySession();
+        break;
+    case 'freewriting':
+        await interactiveFreeWriting();
         break;
     case 'writing':
         await interactiveWritingChallenge();
