@@ -668,5 +668,125 @@
     "lastReviewed": "1970-01-01T00:00:00.000Z",
     "example": "the train backed into the station;  the horse refuses to back",
     "context": "He got into his car and\nbacked out of number four’s drive."
+  },
+  {
+    "word": "Folklore",
+    "translation": "Folclore",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The village held an evening of folklore to celebrate their cultural heritage.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "childhood",
+    "translation": "niñez",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "In her childhood, Maria loved to climb trees in the backyard garden.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "fairy",
+    "translation": "hada",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The fairy danced among the flowers.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "fantastic",
+    "translation": "fantástico",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He told fantastic stories of dragons and goblins.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "healthy",
+    "translation": "sano",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "He was father to three healthy kids.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "instinctive",
+    "translation": "instintivo",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "A rabbit's instinctive reaction to danger is to flee into the underbrush.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "marvelous",
+    "translation": "maravilloso",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I went to a marvelous party last week.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "tales",
+    "translation": "cuentos",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Don't tell tales!",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "unreal",
+    "translation": "irreal",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I just had an unreal hamburger.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "wholesome",
+    "translation": "saludable",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Eating fruits and vegetables provides a wholesome diet.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "youngster",
+    "translation": "niño",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The youngster eagerly awaited the start of summer camp.",
+    "context": "Folklore, legends, myths and fairy tales have followed childhood through the ages, for every healthy youngster has a who"
+  },
+  {
+    "word": "childish",
+    "translation": "infantil",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "Your childish temper tantrums are not going to change my decision on this matter.",
+    "context": "The winged fairies of Grimm and Andersen have brought more happiness to childish hearts than all other human creations."
+  },
+  {
+    "word": "creations",
+    "translation": "creaciones",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "I think the manufacturer was so ashamed of its creation that it didn't put its name on it!",
+    "context": "The winged fairies of Grimm and Andersen have brought more happiness to childish hearts than all other human creations."
+  },
+  {
+    "word": "fairies",
+    "translation": "haditas",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "The children saw fairies dancing under the moonlight in the garden.",
+    "context": "The winged fairies of Grimm and Andersen have brought more happiness to childish hearts than all other human creations."
+  },
+  {
+    "word": "winged",
+    "translation": "aladas",
+    "strength": 1,
+    "lastReviewed": "1970-01-01T00:00:00.000Z",
+    "example": "weak-winged",
+    "context": "The winged fairies of Grimm and Andersen have brought more happiness to childish hearts than all other human creations."
   }
 ]

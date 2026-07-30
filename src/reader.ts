@@ -1,10 +1,109 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import axios from 'axios';
 import { commonWords } from './vocabulary.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
 import { getStylisticFeedback, simplifyToA2, getPageAnalysis, getBatchTranslations, translatePhrase } from './aiManager.js';
 import { generateSentenceAudio, playAudioFile, stopAudio, currentAudioProcess } from './ttsManager.js';
+
+// ─── Dictionary API ────────────────────────────────────────────────
+
+const DICT_API = 'https://freedictionaryapi.com/api/v1/entries/en';
+
+interface DictEntry {
+    partOfSpeech: string;
+    definitions: string[];
+    examples: string[];
+    pronunciation?: string;
+}
+
+async function lookupDictionary(word: string): Promise<DictEntry | null> {
+    try {
+        const { data } = await axios.get(`${DICT_API}/${encodeURIComponent(word)}`);
+        if (!data?.entries?.length) return null;
+        const entry = data.entries[0];
+        const pron = entry.pronunciations?.find((p: any) => p.type === 'ipa')?.text || '';
+        const senses = entry.senses || [];
+        const allDefs = senses.flatMap((s: any) => {
+            const defs: string[] = [];
+            if (s.definition) defs.push(s.definition);
+            if (s.subsenses) s.subsenses.forEach((ss: any) => {
+                if (ss.definition) defs.push(ss.definition);
+            });
+            return defs;
+        });
+        const allExamples = senses.flatMap((s: any) => s.examples || []);
+        return {
+            partOfSpeech: entry.partOfSpeech || '',
+            definitions: allDefs.slice(0, 5),
+            examples: allExamples.slice(0, 3),
+            pronunciation: pron,
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function showWordDetail(word: string, context?: string) {
+    const dictInfo = await lookupDictionary(word);
+    const [translation] = await getBatchTranslations([word]);
+
+    console.clear();
+    console.log(chalk.cyan('═'.repeat(50)));
+    console.log(chalk.white.bold(`  ${word}`));
+    if (dictInfo?.pronunciation) {
+        console.log(chalk.gray(`  /${dictInfo.pronunciation}/`));
+    }
+    if (translation?.translation) {
+        console.log(chalk.green(`  → ${translation.translation}`));
+    }
+    if (dictInfo?.partOfSpeech) {
+        console.log(chalk.gray(`  (${dictInfo.partOfSpeech})`));
+    }
+    console.log(chalk.cyan('═'.repeat(50)));
+
+    if (dictInfo?.definitions.length) {
+        console.log(chalk.yellow.bold('\n  Definitions:'));
+        dictInfo.definitions.forEach((def, i) => {
+            console.log(`  ${i + 1}. ${def}`);
+        });
+    }
+
+    if (dictInfo?.examples.length) {
+        console.log(chalk.yellow.bold('\n  Examples:'));
+        dictInfo.examples.forEach((ex, i) => {
+            console.log(`  ${i + 1}. "${ex}"`);
+        });
+    }
+
+    if (context) {
+        console.log(chalk.dim(`\n  Context: "${context}"`));
+    }
+
+    console.log(chalk.cyan('═'.repeat(50)));
+
+    const { action } = await inquirer.prompt([{
+        type: 'select', name: 'action',
+        message: '¿Qué haces?',
+        choices: [
+            { name: '💾 Guardar en vocabulario', value: 'save' },
+            { name: '✅ Marcar como conocida', value: 'mark' },
+            { name: '↩️ Volver', value: 'back' },
+        ],
+    }]);
+
+    if (action === 'save') {
+        await saveWord({ word, translation: translation?.translation || word, context });
+        addXP(10);
+        console.log(chalk.green(`  ✔ "${word}" guardada (+10 XP)`));
+        await inquirer.prompt([{ type: 'input', name: 'wait', message: '  Presiona Enter...' }]);
+    } else if (action === 'mark') {
+        await markWordAsKnown(word, translation?.translation || '', context || '');
+        console.log(chalk.green(`  ✔ "${word}" marcada como conocida`));
+        await inquirer.prompt([{ type: 'input', name: 'wait', message: '  Presiona Enter...' }]);
+    }
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -51,11 +150,57 @@ function extractContext(text: string, word: string): string {
     return found ? found.trim().substring(0, 120) : text.substring(0, 100);
 }
 
+const ABBREVIATIONS = new Set([
+    'mr', 'mrs', 'ms', 'dr', 'st', 'sr', 'jr', 'etc', 'vs', 'inc', 'ltd',
+    'dept', 'est', 'govt', 'ave', 'blvd', 'rd', 'jan', 'feb', 'mar', 'apr',
+    'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+]);
+
+function isAbbreviation(text: string, pos: number): boolean {
+    const before = text.slice(0, pos).match(/\b(\w+)\.\s*$/);
+    if (!before) return false;
+    const word = before[1].toLowerCase();
+    return ABBREVIATIONS.has(word) || word.length === 1;
+}
+
 function splitSentences(text: string): string[] {
-    return text
-        .split(/(?<=[.!?])\s+(?=[A-Z])/)
-        .map(s => s.trim())
+    const raw = text
+        .replace(/\n{2,}/g, '\n\n')
+        .split(/\n{2,}/)
+        .flatMap(para => {
+            const result: string[] = [];
+            let start = 0;
+            for (let i = 0; i < para.length; i++) {
+                if ((para[i] === '.' || para[i] === '!' || para[i] === '?') &&
+                    (i + 1 >= para.length || para[i + 1] === ' ' && (i + 2 < para.length && para[i + 2] === para[i + 2].toUpperCase() && para[i + 2] !== para[i + 2].toLowerCase()))) {
+                    if (!isAbbreviation(para, i)) {
+                        const sentence = para.slice(start, i + 1).trim();
+                        if (sentence.length > 3) result.push(sentence);
+                        start = i + 1;
+                    }
+                }
+            }
+            const last = para.slice(start).trim();
+            if (last.length > 3) result.push(last);
+            return result;
+        })
         .filter(s => s.length > 5);
+
+    // Group into chunks of ~3 sentences or 400+ characters
+    const chunks: string[] = [];
+    let buf: string[] = [];
+    let bufLen = 0;
+    for (const s of raw) {
+        buf.push(s);
+        bufLen += s.length;
+        if (buf.length >= 3 || bufLen >= 400) {
+            chunks.push(buf.join(' '));
+            buf = [];
+            bufLen = 0;
+        }
+    }
+    if (buf.length > 0) chunks.push(buf.join(' '));
+    return chunks;
 }
 
 // ─── Actions ───────────────────────────────────────────────────────
@@ -191,21 +336,7 @@ async function vocabMenu(text: string, uncommon: string[]) {
         if (word.trim()) {
             const clean = word.trim();
             const ctx = extractContext(text, clean);
-            const translations = await getBatchTranslations([clean]);
-            if (translations[0]?.translation) {
-                console.log(chalk.green(`\n  ${clean} → ${translations[0].translation}`));
-                const { markAction } = await inquirer.prompt([{
-                    type: 'select', name: 'markAction',
-                    message: '¿Qué haces?',
-                    choices: [
-                        { name: '✅ Marcar como conocida', value: 'mark' },
-                        { name: '💾 Guardar en vocabulario', value: 'save' },
-                        { name: '↩️ Volver', value: 'back' },
-                    ],
-                }]);
-                if (markAction === 'mark') await markWordAsKnown(clean, translations[0].translation, ctx);
-                else if (markAction === 'save') { await saveWord({ word: clean, translation: translations[0].translation, context: ctx }); addXP(10); }
-            }
+            await showWordDetail(clean, ctx);
         }
     }
 }
@@ -229,6 +360,34 @@ async function simplifySentence(text: string) {
 }
 
 // ─── Interactive Reader ────────────────────────────────────────────
+
+export async function translateTextQuick(): Promise<void> {
+    console.log(chalk.cyan('╔══════════════════════════════════════════════╗'));
+    console.log(chalk.cyan('║          🌎  Traductor Rápido               ║'));
+    console.log(chalk.cyan('║   Enter vacío para volver al menú           ║'));
+    console.log(chalk.cyan('╚══════════════════════════════════════════════╝\n'));
+
+    while (true) {
+        const { text } = await inquirer.prompt([{
+            type: 'input',
+            name: 'text',
+            message: '✏️  Texto a traducir:',
+        }]);
+
+        if (!text.trim()) break;
+
+        console.log(chalk.blue('\n  Traduciendo...\n'));
+        const translation = await translatePhrase(text);
+        console.log(chalk.cyan('═'.repeat(50)));
+        console.log(chalk.white.bold('  EN:'));
+        console.log(chalk.gray(`  ${text}`));
+        console.log(chalk.cyan('─'.repeat(30)));
+        console.log(chalk.white.bold('  ES:'));
+        console.log(chalk.green(`  ${translation}`));
+        console.log(chalk.cyan('═'.repeat(50)));
+        console.log(); // blank line for spacing
+    }
+}
 
 export async function analyzeText(): Promise<void> {
     const { text } = await inquirer.prompt([{

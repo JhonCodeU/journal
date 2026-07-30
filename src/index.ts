@@ -3,7 +3,7 @@ dotenv.config();
 
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { analyzeText } from './reader.js';
+import { analyzeText, translateTextQuick } from './reader.js';
 import { addEntry, viewEntries } from './journal.js';
 import { viewVocabulary } from './vocabularyManager.js';
 import { interactiveMusicSession } from './music.js';
@@ -94,6 +94,7 @@ async function mainMenu(): Promise<void> {
         { name: '✍️ Practice Sentences', value: 'practice' },
         new inquirer.Separator(),
         'Analyze a text',
+        '🌎 Translate text (quick)',
         'Add a new journal entry',
         'View all journal entries',
         'View my vocabulary',
@@ -145,6 +146,9 @@ async function mainMenu(): Promise<void> {
       break;
     case 'Analyze a text':
       await analyzeText();
+      break;
+    case '🌎 Translate text (quick)':
+      await translateTextQuick();
       break;
     case 'Add a new journal entry':
       await addEntry();

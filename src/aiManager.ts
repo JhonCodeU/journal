@@ -1,26 +1,29 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import axios from 'axios';
 import chalk from 'chalk';
 
-// ── Gemini (cloud, preferred) ─────────────────────────────────────
-const GEMINI_MODEL = "gemini-2.0-flash";
+// ── Command Code Provider API ──────────────────────────────────────
+const PROVIDER_BASE = 'https://api.commandcode.ai/provider/v1';
+const DEFAULT_MODEL = 'deepseek/deepseek-v4-pro';
 
-let ai: GoogleGenAI | null = null;
+let client: OpenAI | null = null;
 
-function getGemini(): GoogleGenAI | null {
-    if (ai) return ai;
-    const key = process.env.GEMINI_API_KEY;
+function getClient(): OpenAI | null {
+    if (client) return client;
+    const key = process.env.CMD_API_KEY;
     if (!key) return null;
-    ai = new GoogleGenAI({ apiKey: key });
-    return ai;
+    client = new OpenAI({
+        apiKey: key,
+        baseURL: PROVIDER_BASE,
+    });
+    return client;
 }
 
 // ── Ollama (local, fallback) ──────────────────────────────────────
 const OLLAMA_URL = "http://localhost:11434/api";
 const OLLAMA_MODEL = "qwen2.5:3b";
-const OLLAMA_LYRICS_MODEL = "llama3";
 
-let ollamaAvailable: boolean | null = null; // null = not checked yet
+let ollamaAvailable: boolean | null = null;
 
 async function checkOllama(): Promise<boolean> {
     if (ollamaAvailable !== null) return ollamaAvailable;
@@ -33,10 +36,10 @@ async function checkOllama(): Promise<boolean> {
     return ollamaAvailable;
 }
 
-async function callOllama(prompt: string, system: string = "", model?: string): Promise<string> {
+async function callOllama(prompt: string, system: string = ""): Promise<string> {
     try {
         const response = await axios.post(`${OLLAMA_URL}/generate`, {
-            model: model || OLLAMA_MODEL,
+            model: OLLAMA_MODEL,
             prompt: prompt,
             system: system,
             stream: false,
@@ -48,33 +51,26 @@ async function callOllama(prompt: string, system: string = "", model?: string): 
     }
 }
 
-// ── Auto-fallback: tries Gemini first, then Ollama ────────────────
-function isQuotaError(error: any): boolean {
-    const msg = error?.message || error?.toString() || '';
-    return msg.includes('429') || msg.includes('QUOTA_EXCEEDED') || msg.includes('quota');
-}
-
-async function callAI(prompt: string, system?: string, jsonMode = false): Promise<string> {
-    const client = getGemini();
-
-    // Try Gemini first
-    if (client) {
+// ── Auto-fallback: tries Provider API first, then Ollama ──────────
+async function callAI(prompt: string, system?: string): Promise<string> {
+    const c = getClient();
+    if (c) {
         try {
-            const params: any = {
-                model: GEMINI_MODEL,
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-            };
+            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
             if (system) {
-                params.config = { systemInstruction: { role: "user", parts: [{ text: system }] } };
+                messages.push({ role: 'system', content: system });
             }
-            const result = await client.models.generateContent(params);
-            if (result.text) return result.text;
+            messages.push({ role: 'user', content: prompt });
+
+            const result = await c.chat.completions.create({
+                model: DEFAULT_MODEL,
+                messages,
+                temperature: 0.3,
+            });
+            const text = result.choices[0]?.message?.content;
+            if (text) return text;
         } catch (error: any) {
-            if (isQuotaError(error)) {
-                console.log(chalk.yellow('\n⚠️  Gemini quota exceeded, switching to local Ollama...\n'));
-            } else {
-                console.log(chalk.yellow(`\n⚠️  Gemini error (${error.message}), trying Ollama...\n`));
-            }
+            console.log(chalk.yellow(`\n⚠️  Provider API error (${error.message}), trying Ollama...\n`));
         }
     }
 
@@ -85,14 +81,13 @@ async function callAI(prompt: string, system?: string, jsonMode = false): Promis
         if (result) return result;
     }
 
-    console.log(chalk.red('\n❌ No AI available. Check your GEMINI_API_KEY or start Ollama.'));
+    console.log(chalk.red('\n❌ No AI available. Check your CMD_API_KEY or start Ollama.'));
     return "";
 }
 
 // ── Exported functions ────────────────────────────────────────────
 
 export function checkAPIKey(): boolean {
-    // Always return true — we have both Gemini and Ollama as options
     return true;
 }
 
@@ -314,27 +309,25 @@ export async function evaluateAnswer(question: string, userAnswer: string, text:
 
 // ── Chat (with auto-fallback) ─────────────────────────────────────
 export async function createChatSession() {
-    const client = getGemini();
+    const c = getClient();
     let usingOllama = false;
-    let history: { role: string, parts: { text: string }[] }[] = [];
+    let history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     const SYSTEM_PROMPT = "You are an English tutor for Spanish speakers. The user will write in Spanish asking how to say things in English, or write in English asking for corrections. Help them naturally. Correct their mistakes and explain briefly in Spanish. Be friendly and encouraging.";
     const OLLAMA_SYSTEM = "You are a friendly English tutor. The user is a Spanish speaker learning English. When they ask how to say something, provide the English translation. Correct grammar mistakes and explain briefly in Spanish.";
 
-    async function tryGemini(message: string): Promise<string | null> {
-        if (!client) return null;
+    async function tryProvider(message: string): Promise<string | null> {
+        if (!c) return null;
         try {
-            const result = await client.models.generateContent({
-                model: GEMINI_MODEL,
-                contents: history,
-                config: {
-                    systemInstruction: {
-                        role: "user",
-                        parts: [{ text: SYSTEM_PROMPT }]
-                    }
-                }
+            const result = await c.chat.completions.create({
+                model: DEFAULT_MODEL,
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPT },
+                    ...history,
+                    { role: 'user', content: message },
+                ],
             });
-            return result.text || null;
+            return result.choices[0]?.message?.content || null;
         } catch {
             return null;
         }
@@ -344,12 +337,12 @@ export async function createChatSession() {
         const ok = await checkOllama();
         if (!ok) return null;
 
-        const ollamaMessages = history.map(h => ({
-            role: h.role === "model" ? "assistant" : h.role,
-            content: h.parts.map(p => p.text).join(' ')
-        }));
-
         try {
+            const ollamaMessages = history.map(h => ({
+                role: h.role === 'assistant' ? 'assistant' : 'user',
+                content: typeof h.content === 'string' ? h.content : '',
+            }));
+
             const response = await axios.post(`${OLLAMA_URL}/chat`, {
                 model: OLLAMA_MODEL,
                 messages: [
@@ -366,27 +359,27 @@ export async function createChatSession() {
 
     return {
         sendMessage: async (message: string) => {
-            history.push({ role: "user", parts: [{ text: message }] });
-
-            // Try Gemini first (unless we already fell back to Ollama)
+            // Try Provider API first (unless we already fell back to Ollama)
             if (!usingOllama) {
-                const result = await tryGemini(message);
+                const result = await tryProvider(message);
                 if (result) {
-                    history.push({ role: "model", parts: [{ text: result }] });
+                    history.push({ role: 'user', content: message });
+                    history.push({ role: 'assistant', content: result });
                     return { text: result };
                 }
-                console.log(chalk.yellow('\n⚠️  Gemini unavailable, switching to Ollama...\n'));
+                console.log(chalk.yellow('\n⚠️  Provider API unavailable, switching to Ollama...\n'));
                 usingOllama = true;
             }
 
             // Fallback: Ollama
             const result = await tryOllamaHistory();
             if (result) {
-                history.push({ role: "model", parts: [{ text: result }] });
+                history.push({ role: 'user', content: message });
+                history.push({ role: 'assistant', content: result });
                 return { text: result };
             }
 
-            return { text: "I'm sorry, both Gemini and Ollama are unavailable. Check your GEMINI_API_KEY or start Ollama." };
+            return { text: "I'm sorry, both Provider API and Ollama are unavailable. Check your CMD_API_KEY or start Ollama." };
         }
     };
 }

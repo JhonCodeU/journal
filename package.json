@@ -29,6 +29,7 @@
     "epub2": "^3.0.2",
     "inquirer": "^13.4.2",
     "languagetool-api": "^1.0.0",
+    "openai": "^7.1.0",
     "pdf-parse": "^2.4.5",
     "spellchecker": "^3.7.1"
   },
@@ -39,6 +40,6 @@
     "@types/pdf-parse": "^1.1.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
