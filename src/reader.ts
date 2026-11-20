@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { commonWords } from './vocabulary.js';
+import { wordRegExp } from './utils.js';
 import { saveWord } from './vocabularyManager.js';
 
 export async function analyzeText(): Promise<void> {
@@ -25,7 +26,7 @@ export async function analyzeText(): Promise<void> {
 
   let highlightedText = text;
   difficultWords.forEach(word => {
-    const regex = new RegExp(`\\b${word}\\b`, 'g');
+    const regex = wordRegExp(word);
     highlightedText = highlightedText.replace(regex, chalk.yellow(word));
   });
 

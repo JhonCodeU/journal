@@ -1,10 +1,15 @@
 export interface VocabularyItem {
     word: string;
     translation: string;
+    /** Days until the next review (SRS interval). */
     strength: number;
     lastReviewed: string | Date;
     example: string | null;
     context?: string;
+    /** SM-2 ease factor (defaults to 2.5 when missing). */
+    easeFactor?: number;
+    /** Consecutive correct reviews (defaults to 0 when missing). */
+    repetitions?: number;
 }
 
 export interface JournalEntry {

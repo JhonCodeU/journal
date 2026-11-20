@@ -9,6 +9,7 @@ import { saveWord, getVocabulary } from './vocabularyManager.js';
 import { getPodcastSummary, getPodcastVocab, getBatchTranslations } from './aiManager.js';
 import { fetchArticle } from './webReader.js';
 import { commonWords } from './vocabulary.js';
+import { wordRegExp } from './utils.js';
 import { addXP } from './statsManager.js';
 
 const LISTENED_FILE = './data/listened_episodes.json';
@@ -373,7 +374,7 @@ async function showTranscriptFlow(episode: Episode) {
 
     let highlightedText = content;
     difficultWords.forEach(word => {
-        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        const regex = wordRegExp(word);
         highlightedText = highlightedText.replace(regex, chalk.yellow(word));
     });
 

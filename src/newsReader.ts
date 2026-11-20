@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { commonWords } from './vocabulary.js';
+import { wordRegExp } from './utils.js';
 import { getBatchTranslations, getPodcastVocab } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
@@ -100,7 +101,7 @@ function highlightDifficult(text: string): string {
 
   let result = text;
   for (const w of difficult) {
-    result = result.replace(new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), chalk.yellow(w));
+    result = result.replace(wordRegExp(w), chalk.yellow(w));
   }
   return result;
 }
@@ -108,7 +109,7 @@ function highlightDifficult(text: string): string {
 function extractContext(text: string, word: string): string {
   const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
   const found = sentences.find(s =>
-    new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)
+    wordRegExp(word, 'i').test(s)
   );
   return found ? found.trim().substring(0, 120) : text.substring(0, 100);
 }
