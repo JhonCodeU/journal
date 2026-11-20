@@ -54,6 +54,57 @@ npm start
 
 La aplicación te presentará un menú principal donde podrás elegir la funcionalidad que deseas utilizar.
 
+## 🧑‍💻 Mientras programas
+
+Tres herramientas pensadas para practicar inglés sin salir de tu flujo de trabajo.
+
+### 1. Palabras pendientes en el prompt
+
+`bin/journal-status.mjs` imprime `📚 5` cuando tienes palabras por repasar (y nada cuando no hay). Es JS puro sin dependencias y tarda ~30 ms, así que no ralentiza tu terminal.
+
+**Bash** (`~/.bashrc`):
+```bash
+export JOURNAL_DIR="$HOME/ruta/a/journal"
+PS1='$(node "$JOURNAL_DIR/bin/journal-status.mjs" 2>/dev/null) '"$PS1"
+```
+
+**Zsh** (`~/.zshrc`):
+```bash
+export JOURNAL_DIR="$HOME/ruta/a/journal"
+setopt PROMPT_SUBST
+PROMPT='$(node "$JOURNAL_DIR/bin/journal-status.mjs" 2>/dev/null) '"$PROMPT"
+```
+
+Usa `--plain` si solo quieres el número (útil para tmux o Starship). Desde el proyecto: `npm run status`.
+
+### 2. Revisión del inglés en tus commits
+
+Un hook `commit-msg` que revisa con Ollama el inglés de cada mensaje de commit y te sugiere correcciones. **Nunca bloquea el commit**: si Ollama no está corriendo o tarda más de 20 s, simplemente lo omite.
+
+```bash
+npm run hook:install -- ~/code/mi-proyecto     # instalar en un repo
+npm run hook:uninstall -- ~/code/mi-proyecto   # quitarlo
+```
+
+- No sobrescribe un hook `commit-msg` que ya tengas; te dice cómo añadirlo.
+- Ignora el estilo de commits (imperativo, `feat:`, sin punto final) y el código entre backticks.
+- Omite mensajes muy cortos, merges y `fixup!`.
+- Saltarlo una vez: `JOURNAL_SKIP_COMMIT_CHECK=1 git commit ...`
+- Otro modelo: `JOURNAL_COMMIT_MODEL=llama3`
+
+### 3. Vocabulario técnico
+
+Extrae las palabras en inglés que no conoces de READMEs, documentación o mensajes de error, las traduce con IA y te deja elegir cuáles añadir a tu repaso SRS (con la frase donde aparecieron como contexto). Ignora bloques de código, URLs, rutas, `camelCase`, `snake_case` y `CONSTANTES`.
+
+```bash
+npm run tech -- ../mi-proyecto        # lee su README y docs/*.md
+npm run tech -- docs/arquitectura.md  # un archivo concreto
+npm test 2>&1 | npm run tech          # las palabras de los errores
+npm run tech                          # pegar texto en tu editor
+```
+
+También está en el menú principal: **🧑‍💻 Tech Vocabulary**.
+
 ## 🛠️ Tecnologías Utilizadas
 
 -   **Node.js**
