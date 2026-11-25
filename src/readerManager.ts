@@ -14,6 +14,7 @@ import {
 import { getStylisticFeedback, simplifyToA2, getPageAnalysis, getBatchTranslations, getPodcastVocab, translatePhrase } from './aiManager.js';
 import { saveWord, getVocabulary, markWordAsKnown } from './vocabularyManager.js';
 import { commonWords } from './vocabulary.js';
+import { wordRegExp } from './utils.js';
 import { addXP } from './statsManager.js';
 import { fetchArticle } from './webReader.js';
 import { generateSentenceAudio, playAudioFile, stopAudio, currentAudioProcess } from './ttsManager.js';
@@ -51,7 +52,7 @@ function highlightDifficultWords(text: string): string {
     let highlighted = text;
     for (const word of difficult) {
         highlighted = highlighted.replace(
-            new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'),
+            wordRegExp(word),
             chalk.yellow(word)
         );
     }
@@ -61,7 +62,7 @@ function highlightDifficultWords(text: string): string {
 function extractContextSentence(text: string, word: string): string {
     const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
     const found = sentences.find(s =>
-        new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)
+        wordRegExp(word, 'i').test(s)
     );
     return found ? found.trim().substring(0, 120) : text.substring(0, 100);
 }

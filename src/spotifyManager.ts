@@ -6,7 +6,10 @@ import http from 'http';
 import url from 'url';
 import chalk from 'chalk';
 
-const STORAGE_FILE = path.resolve('data/storage.json');
+// Tokens live in their own git-ignored file. They used to be written into
+// data/storage.json, but that file is the journal's array, so JSON.stringify
+// dropped the property and the login was never persisted.
+const TOKENS_FILE = path.resolve('data/spotify_tokens.json');
 
 interface SpotifyTokens {
   accessToken: string;
@@ -16,10 +19,9 @@ interface SpotifyTokens {
 
 function loadTokens(): SpotifyTokens | null {
   try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const data = fs.readFileSync(STORAGE_FILE, 'utf-8');
-      const json = JSON.parse(data);
-      if (json.spotify) return json.spotify;
+    if (fs.existsSync(TOKENS_FILE)) {
+      const json = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf-8'));
+      if (json?.accessToken && json?.refreshToken) return json;
     }
   } catch (error) {
     console.error('Error loading tokens:', error);
@@ -29,12 +31,8 @@ function loadTokens(): SpotifyTokens | null {
 
 function saveTokens(tokens: SpotifyTokens) {
   try {
-    let storage: any = {};
-    if (fs.existsSync(STORAGE_FILE)) {
-      storage = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf-8'));
-    }
-    storage.spotify = tokens;
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(storage, null, 2));
+    fs.mkdirSync(path.dirname(TOKENS_FILE), { recursive: true });
+    fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokens, null, 2), { mode: 0o600 });
   } catch (error) {
     console.error('Error saving tokens:', error);
   }

@@ -160,3 +160,5 @@ data
 .commandcode/*
 
 # End of https://www.toptal.com/developers/gitignore/api/node,linux
+### App secrets ###
+data/spotify_tokens.json

@@ -18,6 +18,7 @@ import { interactiveFreeWriting } from './freeWriting.js';
 import { interactiveGrammarLesson } from './grammarLessons.js';
 import { interactiveReadingComprehension } from './readingComprehension.js';
 import { newsReader } from './newsReader.js';
+import { techVocabularySession } from './techVocab.js';
 
 const args = process.argv.slice(2);
 
@@ -90,6 +91,7 @@ async function mainMenu(): Promise<void> {
         { name: '💬 Practice Conversation (AI)', value: 'chat' },
       { name: '📚 Grammar Lessons (Tenses + Exercises)', value: 'grammar' },
       { name: '📖 Reading Comprehension (Text + Questions)', value: 'reading' },
+        { name: '🧑‍💻 Tech Vocabulary (README, docs, errors)', value: 'tech' },
         { name: '🧠 Review Vocabulary (SRS)', value: 'review' },
         { name: '✍️ Practice Sentences', value: 'practice' },
         new inquirer.Separator(),
@@ -135,6 +137,9 @@ async function mainMenu(): Promise<void> {
     case 'chat':
         await startChatSession();
         break;
+    case 'tech':
+      await techVocabularySession();
+      break;
     case 'review':
       await reviewSession();
       break;
@@ -177,6 +182,13 @@ if (args.includes('--review') || args.includes('-r')) {
     updateStreak();
     await newsReader();
     console.log(chalk.gray('\nUsa ' + chalk.italic('npm start') + ' para el menú completo.\n'));
+} else if (args.includes('--tech') || args.includes('-t')) {
+  // Optional path right after the flag: npm run tech -- README.md
+  const flagIndex = args.findIndex(a => a === '--tech' || a === '-t');
+  const source = args[flagIndex + 1] && !args[flagIndex + 1].startsWith('-') ? args[flagIndex + 1] : undefined;
+  updateStreak();
+  await techVocabularySession(source);
+  process.exit(0); // the /dev/tty stream used for piped input would keep the process alive
 } else if (args.includes('--bbc') || args.includes('-b')) {
   updateStreak();
   console.log(chalk.cyan.bold('\n🎧 BBC 6 Minute English (Acceso Directo)\n'));

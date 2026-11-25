@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { getVocabulary, saveVocabulary } from './vocabularyManager.js';
 import { addXP } from './statsManager.js';
 import { VocabularyItem } from './types.js';
+import { checkAnswer, scheduleReview, wordRegExp } from './utils.js';
 
 export function getWordsToReview(): VocabularyItem[] {
   const vocabulary = getVocabulary();
@@ -17,6 +18,56 @@ export function getWordsToReview(): VocabularyItem[] {
     .sort((a, b) => a.strength - b.strength);
 }
 
+/**
+ * Asks each word, grades it (correct / typo / wrong), reschedules it with SM-2
+ * and saves the vocabulary. Returns the XP earned.
+ */
+async function runReview(words: VocabularyItem[], compact: boolean): Promise<number> {
+  let sessionXP = 0;
+  const reviewed = new Map<string, VocabularyItem>();
+
+  for (const word of words) {
+    const { answer } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'answer',
+        message: compact
+          ? `"${chalk.yellow(word.word)}" →`
+          : `What is the translation of "${chalk.yellow(word.word)}"?`,
+      },
+    ]);
+
+    const result = checkAnswer(answer, word.translation);
+    let quality: number;
+
+    if (result === 'correct') {
+      console.log(chalk.green(compact ? '  ✔ Correcto!\n' : 'Correct!\n'));
+      quality = 5;
+      sessionXP += 10;
+    } else if (result === 'typo') {
+      console.log(chalk.yellow(`  ≈ Almost! Check the spelling: ${chalk.bold(word.translation)}\n`));
+      quality = 4;
+      sessionXP += 7;
+    } else {
+      console.log(chalk.red(compact
+        ? `  ✘ ${word.translation}\n`
+        : `Not quite. The correct answer is: ${chalk.bold(word.translation)}\n`));
+      quality = 1;
+      sessionXP += 2;
+    }
+
+    const updated = scheduleReview(word, quality);
+    reviewed.set(word.word, updated);
+    if (!compact) {
+      console.log(chalk.gray(`  Next review in ${updated.strength} day(s).\n`));
+    }
+  }
+
+  saveVocabulary(getVocabulary().map(v => reviewed.get(v.word) ?? v));
+  addXP(sessionXP);
+  return sessionXP;
+}
+
 export async function reviewSession(): Promise<void> {
   const wordsToReview = getWordsToReview();
 
@@ -26,38 +77,7 @@ export async function reviewSession(): Promise<void> {
   }
 
   console.log(chalk.cyan.bold(`\n--- Review Session: ${wordsToReview.length} words to go! ---\n`));
-
-  let sessionXP = 0;
-  for (const word of wordsToReview) {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'answer',
-        message: `What is the translation of "${chalk.yellow(word.word)}"?`,
-      },
-    ]);
-
-    if (answer.toLowerCase().trim() === word.translation.toLowerCase().trim()) {
-      console.log(chalk.green('Correct!\n'));
-      word.strength += 1;
-      sessionXP += 10;
-    } else {
-      console.log(chalk.red(`Not quite. The correct answer is: ${chalk.bold(word.translation)}\n`));
-      word.strength = Math.max(1, word.strength - 1);
-      sessionXP += 2;
-    }
-    word.lastReviewed = new Date().toISOString();
-  }
-
-  addXP(sessionXP);
-  const vocabulary = getVocabulary();
-  const updatedVocabulary = vocabulary.map(v => {
-    const reviewedWord = wordsToReview.find(rw => rw.word === v.word);
-    return reviewedWord || v;
-  });
-
-  saveVocabulary(updatedVocabulary);
-
+  await runReview(wordsToReview, false);
   console.log(chalk.green.bold('\nReview session complete! Keep up the great work!\n'));
 }
 
@@ -69,14 +89,12 @@ export async function quickReview(): Promise<void> {
     return;
   }
 
-  const limit = Math.min(3, wordsToReview.length);
-
   const { choice } = await inquirer.prompt([{
     type: 'select',
     name: 'choice',
     message: `Tienes ${wordsToReview.length} palabras. ¿Cuántas repasas?`,
     choices: [
-      { name: `⚡ Rápido (3 palabras) [~1 min]`, value: 3 },
+      { name: `⚡ Rápido (${Math.min(3, wordsToReview.length)} palabras) [~1 min]`, value: Math.min(3, wordsToReview.length) },
       { name: `📚 Medio (${Math.min(7, wordsToReview.length)} palabras) [~3 min]`, value: Math.min(7, wordsToReview.length) },
       { name: `🎯 Todas (${wordsToReview.length} palabras) [~${Math.round(wordsToReview.length * 0.5)} min]`, value: wordsToReview.length },
       { name: '↩️  Cancelar', value: 0 }
@@ -86,39 +104,8 @@ export async function quickReview(): Promise<void> {
   if (choice === 0) return;
 
   const selected = wordsToReview.slice(0, choice);
-
   console.log(chalk.cyan.bold(`\n--- Quick Review: ${selected.length} palabras ---\n`));
-
-  let sessionXP = 0;
-  for (const word of selected) {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'answer',
-        message: `"${chalk.yellow(word.word)}" →`,
-      },
-    ]);
-
-    if (answer.toLowerCase().trim() === word.translation.toLowerCase().trim()) {
-      console.log(chalk.green('  ✔ Correcto!\n'));
-      word.strength += 1;
-      sessionXP += 10;
-    } else {
-      console.log(chalk.red(`  ✘ ${word.translation}\n`));
-      word.strength = Math.max(1, word.strength - 1);
-      sessionXP += 2;
-    }
-    word.lastReviewed = new Date().toISOString();
-  }
-
-  addXP(sessionXP);
-  const vocabulary = getVocabulary();
-  const updatedVocabulary = vocabulary.map(v => {
-    const reviewedWord = selected.find(rw => rw.word === v.word);
-    return reviewedWord || v;
-  });
-  saveVocabulary(updatedVocabulary);
-
+  const sessionXP = await runReview(selected, true);
   console.log(chalk.green.bold(`\n✔ ${selected.length} palabras repasadas. +${sessionXP} XP\n`));
 }
 
@@ -134,7 +121,7 @@ export async function practiceSentences(): Promise<void> {
 
   for (const word of vocabulary) {
     const sentence = word.example!;
-    const blankedSentence = sentence.replace(new RegExp(`\\b${word.word}\\b`, 'ig'), '_____');
+    const blankedSentence = sentence.replace(wordRegExp(word.word, 'ig'), '_____');
 
     const { answer } = await inquirer.prompt([
       {
@@ -144,7 +131,7 @@ export async function practiceSentences(): Promise<void> {
       },
     ]);
 
-    if (answer.toLowerCase().trim() === word.word.toLowerCase().trim()) {
+    if (checkAnswer(answer, word.word) !== 'wrong') {
       console.log(chalk.green('Correct!\n'));
       addXP(5);
     } else {

@@ -9,7 +9,11 @@
     "review": "tsx src/index.ts --review",
     "bbc": "tsx src/index.ts --bbc",
     "news": "tsx src/index.ts --news",
-    "build": "tsc"
+    "build": "tsc",
+    "tech": "tsx src/index.ts --tech",
+    "status": "node bin/journal-status.mjs",
+    "hook:install": "node scripts/install-commit-hook.mjs",
+    "hook:uninstall": "node scripts/install-commit-hook.mjs --uninstall"
   },
   "keywords": [
     "english",
